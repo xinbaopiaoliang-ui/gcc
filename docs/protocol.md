@@ -44,6 +44,40 @@
 {"type":"ERROR","error_code":"auth_failed","error":"authentication failed"}
 ```
 
+生产测试可以使用 HMAC/JWT 风格 token。服务端配置：
+
+```yaml
+auth:
+  mode: "hmac"
+  hmac_secret: "replace-with-a-long-random-secret"
+  token_leeway: "30s"
+```
+
+token 使用 HS256，常用 claims：
+
+```json
+{
+  "sub": "user-1",
+  "user_id": "user-1",
+  "device_id": "device-1",
+  "iat": 1781510400,
+  "nbf": 1781510395,
+  "exp": 1781511300,
+  "max_connections": 2,
+  "rate_limit_mbps": 50,
+  "allow_tcp": true,
+  "allow_udp": true
+}
+```
+
+`exp` 必须存在；`nbf` 和 `iat` 会按 `auth.token_leeway` 做时钟偏差容忍。`max_connections`、`rate_limit_mbps`、`allow_tcp`、`allow_udp` 会覆盖服务端默认限制。
+
+生成示例：
+
+```bash
+gaccel-token -secret "replace-with-a-long-random-secret" -user user-1 -device device-1 -ttl 15m
+```
+
 ### OPEN_UDP
 
 客户端通过控制 stream 请求创建 UDP flow：

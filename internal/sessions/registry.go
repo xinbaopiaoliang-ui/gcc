@@ -19,6 +19,11 @@ type Session struct {
 
 	authenticated atomic.Bool
 	userID        atomic.Value
+	deviceID      atomic.Value
+	maxConns      atomic.Int64
+	rateLimitMbps atomic.Int64
+	allowTCP      atomic.Bool
+	allowUDP      atomic.Bool
 	lastSeen      atomic.Int64
 
 	mu    sync.RWMutex
@@ -40,7 +45,12 @@ type Snapshot struct {
 	ID            string         `json:"id"`
 	RemoteAddr    string         `json:"remote_addr"`
 	UserID        string         `json:"user_id,omitempty"`
+	DeviceID      string         `json:"device_id,omitempty"`
 	Authenticated bool           `json:"authenticated"`
+	MaxConns      int            `json:"max_connections,omitempty"`
+	RateLimitMbps int            `json:"rate_limit_mbps,omitempty"`
+	AllowTCP      bool           `json:"allow_tcp"`
+	AllowUDP      bool           `json:"allow_udp"`
 	CreatedAt     time.Time      `json:"created_at"`
 	LastSeen      time.Time      `json:"last_seen"`
 	UDPFlows      int            `json:"udp_flows"`
@@ -105,7 +115,16 @@ func (r *Registry) Snapshot() []Snapshot {
 }
 
 func (s *Session) SetUser(userID string) {
+	s.SetPrincipal(userID, "", 0, 0, true, true)
+}
+
+func (s *Session) SetPrincipal(userID, deviceID string, maxConns, rateLimitMbps int, allowTCP, allowUDP bool) {
 	s.userID.Store(userID)
+	s.deviceID.Store(deviceID)
+	s.maxConns.Store(int64(maxConns))
+	s.rateLimitMbps.Store(int64(rateLimitMbps))
+	s.allowTCP.Store(allowTCP)
+	s.allowUDP.Store(allowUDP)
 	s.authenticated.Store(true)
 	s.Touch()
 }
@@ -117,6 +136,15 @@ func (s *Session) UserID() string {
 	}
 	userID, _ := value.(string)
 	return userID
+}
+
+func (s *Session) DeviceID() string {
+	value := s.deviceID.Load()
+	if value == nil {
+		return ""
+	}
+	deviceID, _ := value.(string)
+	return deviceID
 }
 
 func (s *Session) Touch() {
@@ -172,7 +200,12 @@ func (s *Session) Snapshot() Snapshot {
 		ID:            s.ID,
 		RemoteAddr:    s.RemoteAddr,
 		UserID:        s.UserID(),
+		DeviceID:      s.DeviceID(),
 		Authenticated: s.authenticated.Load(),
+		MaxConns:      int(s.maxConns.Load()),
+		RateLimitMbps: int(s.rateLimitMbps.Load()),
+		AllowTCP:      s.allowTCP.Load(),
+		AllowUDP:      s.allowUDP.Load(),
 		CreatedAt:     s.CreatedAt,
 		LastSeen:      time.Unix(0, s.lastSeen.Load()),
 		UDPFlows:      udpFlows,

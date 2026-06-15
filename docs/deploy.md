@@ -17,14 +17,14 @@ curl -fsSL https://raw.githubusercontent.com/xinbaopiaoliang-ui/gcc/main/scripts
 安装指定版本：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xinbaopiaoliang-ui/gcc/main/scripts/install.sh | sudo env VERSION=v0.1.0 sh
+curl -fsSL https://raw.githubusercontent.com/xinbaopiaoliang-ui/gcc/main/scripts/install.sh | sudo env VERSION=v0.2.0 sh
 ```
 
 安装脚本会：
 
 - 下载 GitHub Release 中匹配当前 Linux 架构的包。
 - 校验 `SHA256SUMS`。
-- 安装 `gaccel-node` 和 `gaccel-probe` 到 `/usr/local/bin`。
+- 安装 `gaccel-node`、`gaccel-probe` 和 `gaccel-token` 到 `/usr/local/bin`。
 - 初始化 `/etc/gaccel-node/config.yaml`。
 - 安装 systemd service。
 

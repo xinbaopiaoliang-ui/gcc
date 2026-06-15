@@ -54,7 +54,12 @@ func (s *connSession) setPrincipal(principal *auth.Principal) error {
 	if s.authenticated() {
 		return nil
 	}
-	release, err := s.collector.UserConnOpened(principal.UserID, s.cfg.Current().Limits.MaxUserConnections)
+	current := s.cfg.Current()
+	maxConnections := current.Limits.MaxUserConnections
+	if principal.MaxConnections > 0 {
+		maxConnections = principal.MaxConnections
+	}
+	release, err := s.collector.UserConnOpened(principal.UserID, maxConnections)
 	if err != nil {
 		return err
 	}
@@ -63,7 +68,14 @@ func (s *connSession) setPrincipal(principal *auth.Principal) error {
 		return nil
 	}
 	s.releaseUserConn = release
-	s.record.SetUser(principal.UserID)
+	rateLimitMbps := current.Limits.UserRateLimitMbps
+	if principal.RateLimitMbps > 0 {
+		rateLimitMbps = principal.RateLimitMbps
+	}
+	if rateLimitMbps > 0 {
+		s.limiter = limiter.NewByteLimiter(rateLimitMbps)
+	}
+	s.record.SetPrincipal(principal.UserID, principal.DeviceID, maxConnections, rateLimitMbps, principal.AllowTCP, principal.AllowUDP)
 	return nil
 }
 
@@ -82,6 +94,9 @@ func (s *connSession) userID() string {
 func (s *connSession) openUDP(ctx context.Context, targetHost string, targetPort int) (uint32, error) {
 	if !s.authenticated() {
 		return 0, errors.New("session is not authenticated")
+	}
+	if !s.principal.Load().AllowUDP {
+		return 0, auth.ErrPermissionDenied
 	}
 	s.record.Touch()
 	cfg := s.cfg.Current()
@@ -133,6 +148,9 @@ func (s *connSession) openUDP(ctx context.Context, targetHost string, targetPort
 func (s *connSession) openTCPTarget(ctx context.Context, targetHost string, targetPort int) (uint32, net.Conn, func(string), error) {
 	if !s.authenticated() {
 		return 0, nil, nil, errors.New("session is not authenticated")
+	}
+	if !s.principal.Load().AllowTCP {
+		return 0, nil, nil, auth.ErrPermissionDenied
 	}
 	s.record.Touch()
 	cfg := s.cfg.Current()

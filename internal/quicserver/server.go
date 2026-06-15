@@ -220,6 +220,9 @@ func flowFailureReason(err error) string {
 	if errors.Is(err, router.ErrTargetDenied) {
 		return "denied"
 	}
+	if errors.Is(err, auth.ErrPermissionDenied) {
+		return "permission_denied"
+	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return "context"
 	}

@@ -114,6 +114,9 @@ fi
 mkdir -p "$INSTALL_DIR" "$CONFIG_DIR" "$STATE_DIR"
 install -m 0755 "${PKG_DIR}/gaccel-node" "${INSTALL_DIR}/gaccel-node"
 install -m 0755 "${PKG_DIR}/gaccel-probe" "${INSTALL_DIR}/gaccel-probe"
+if [ -f "${PKG_DIR}/gaccel-token" ]; then
+  install -m 0755 "${PKG_DIR}/gaccel-token" "${INSTALL_DIR}/gaccel-token"
+fi
 
 if [ ! -f "${CONFIG_DIR}/config.yaml" ]; then
   install -m 0644 "${PKG_DIR}/config.example.yaml" "${CONFIG_DIR}/config.yaml"

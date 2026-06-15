@@ -25,8 +25,10 @@ type ServerConfig struct {
 }
 
 type AuthConfig struct {
-	Mode      string   `yaml:"mode"`
-	DevTokens []string `yaml:"dev_tokens"`
+	Mode        string        `yaml:"mode"`
+	DevTokens   []string      `yaml:"dev_tokens"`
+	HMACSecret  string        `yaml:"hmac_secret"`
+	TokenLeeway time.Duration `yaml:"token_leeway"`
 }
 
 type LimitsConfig struct {
@@ -78,8 +80,9 @@ func Default() *Config {
 			ALPN:   "gaccel/1",
 		},
 		Auth: AuthConfig{
-			Mode:      "dev",
-			DevTokens: []string{"dev-token"},
+			Mode:        "dev",
+			DevTokens:   []string{"dev-token"},
+			TokenLeeway: 30 * time.Second,
 		},
 		Limits: LimitsConfig{
 			MaxQUICConnections: 50000,
@@ -120,6 +123,9 @@ func applyDefaults(cfg *Config) {
 	if len(cfg.Auth.DevTokens) == 0 && cfg.Auth.Mode == "dev" {
 		cfg.Auth.DevTokens = def.Auth.DevTokens
 	}
+	if cfg.Auth.TokenLeeway == 0 {
+		cfg.Auth.TokenLeeway = def.Auth.TokenLeeway
+	}
 	if cfg.Limits.MaxQUICConnections == 0 {
 		cfg.Limits.MaxQUICConnections = def.Limits.MaxQUICConnections
 	}
@@ -159,8 +165,20 @@ func validate(cfg *Config) error {
 	if cfg.Server.CertFile == "" || cfg.Server.KeyFile == "" {
 		return fmt.Errorf("server.cert_file and server.key_file are required")
 	}
-	if cfg.Auth.Mode == "dev" && len(cfg.Auth.DevTokens) == 0 {
-		return errors.New("auth.dev_tokens must not be empty in dev mode")
+	if cfg.Auth.TokenLeeway < 0 {
+		return errors.New("auth.token_leeway must be >= 0")
+	}
+	switch cfg.Auth.Mode {
+	case "dev":
+		if len(cfg.Auth.DevTokens) == 0 {
+			return errors.New("auth.dev_tokens must not be empty in dev mode")
+		}
+	case "hmac":
+		if cfg.Auth.HMACSecret == "" {
+			return errors.New("auth.hmac_secret is required in hmac mode")
+		}
+	default:
+		return fmt.Errorf("unsupported auth.mode %q", cfg.Auth.Mode)
 	}
 	return nil
 }

@@ -8,6 +8,8 @@ auth:
   mode: "dev"
   dev_tokens:
     - "dev-token"
+  hmac_secret: ""
+  token_leeway: "30s"
 
 limits:
   max_quic_connections: 50000

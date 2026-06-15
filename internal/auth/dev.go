@@ -20,7 +20,9 @@ func (a *DevAuthenticator) Authenticate(token string) (*Principal, error) {
 		return nil, ErrInvalidToken
 	}
 	return &Principal{
-		UserID: "dev",
-		Token:  token,
+		UserID:   "dev",
+		Token:    token,
+		AllowTCP: true,
+		AllowUDP: true,
 	}, nil
 }

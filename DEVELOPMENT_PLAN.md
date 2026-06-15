@@ -216,6 +216,28 @@ admin:
 - [x] README 安装说明。
 - [x] 部署文档发布说明。
 
+### 阶段 9：正式鉴权与 Token 工具
+
+- [x] HMAC/JWT 短期 token 验证。
+- [x] token 过期时间与 leeway。
+- [x] token 用户 ID / 设备 ID claims。
+- [x] token 覆盖单用户连接数。
+- [x] token 覆盖连接限速。
+- [x] token 控制 TCP/UDP 权限。
+- [x] gaccel-token 生成工具。
+- [x] 鉴权文档与配置示例。
+- [x] Release workflow 打包 token 工具。
+- [x] /sessions 输出 device_id、有效限额和 TCP/UDP 权限，方便面板侧排查。
+
+### 阶段 10：节点运维与面板对接
+
+- [ ] 增加节点 ID、区域、标签等节点元数据配置。
+- [ ] 增加节点到面板的 heartbeat/report 客户端，只上报节点状态和版本，不做客户端订阅下发。
+- [ ] 设计面板下发运维指令的签名校验，避免管理 API 暴露公网。
+- [ ] 支持节点配置包校验、热更新和失败回滚。
+- [ ] 支持节点二进制版本检查和安全升级流程。
+- [ ] 补充面板对接协议文档。
+
 ## 已知风险与注意事项
 
 - QUIC Datagram 不保证可靠到达，适合 UDP 实时游戏包；控制消息和 TCP 必须走 Stream。

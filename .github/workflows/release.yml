@@ -65,6 +65,7 @@ jobs:
           mkdir -p "dist/${PKG}"
           go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o "dist/${PKG}/gaccel-node" ./cmd/server
           go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o "dist/${PKG}/gaccel-probe" ./cmd/gaccel-probe
+          go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o "dist/${PKG}/gaccel-token" ./cmd/gaccel-token
 
           cp config.example.yaml "dist/${PKG}/config.example.yaml"
           mkdir -p "dist/${PKG}/deployments" "dist/${PKG}/docs"

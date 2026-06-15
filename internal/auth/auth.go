@@ -8,6 +8,10 @@ import (
 
 var ErrInvalidToken = errors.New("invalid token")
 var ErrPermissionDenied = errors.New("permission denied")
+var ErrTokenExpired = errors.New("token expired")
+var ErrTokenNotActive = errors.New("token not active")
+var ErrTokenMissingExpiration = errors.New("token missing expiration")
+var ErrTokenIssuedInFuture = errors.New("token issued in the future")
 
 type Principal struct {
 	UserID         string

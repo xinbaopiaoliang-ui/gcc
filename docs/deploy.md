@@ -17,7 +17,7 @@ curl -fsSL https://raw.githubusercontent.com/xinbaopiaoliang-ui/gcc/main/scripts
 安装指定版本：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xinbaopiaoliang-ui/gcc/main/scripts/install.sh | sudo env VERSION=v0.2.0 sh
+curl -fsSL https://raw.githubusercontent.com/xinbaopiaoliang-ui/gcc/main/scripts/install.sh | sudo env VERSION=v0.3.0 sh
 ```
 
 安装脚本会：

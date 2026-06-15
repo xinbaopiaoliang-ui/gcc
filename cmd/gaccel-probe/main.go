@@ -32,13 +32,17 @@ func main() {
 	alpn := flag.String("alpn", "gaccel/1", "QUIC ALPN")
 	sni := flag.String("sni", "", "TLS server name")
 	token := flag.String("token", "dev-token", "auth token")
-	mode := flag.String("mode", "ping", "probe mode: ping, udp, tcp")
+	mode := flag.String("mode", "ping", "probe mode: ping, keepalive, udp, tcp")
 	targetHost := flag.String("target-host", "127.0.0.1", "relay target host")
 	targetPort := flag.Int("target-port", 7, "relay target port")
 	payload := flag.String("payload", "ping", "payload for udp/tcp probes")
 	count := flag.Int("count", 1, "number of udp packets or ping requests")
+	interval := flag.Duration("interval", 0, "interval between keepalive pings")
 	timeout := flag.Duration("timeout", 5*time.Second, "operation timeout")
 	insecure := flag.Bool("insecure", true, "skip TLS certificate verification")
+	clientID := flag.String("client-id", "", "client instance id")
+	clientVersion := flag.String("client-version", "", "client version")
+	clientPlatform := flag.String("client-platform", "", "client platform, for example windows/amd64")
 	flag.Parse()
 
 	if *showVersion {
@@ -46,13 +50,24 @@ func main() {
 		return
 	}
 
-	if err := run(*addr, *alpn, *sni, *token, *mode, *targetHost, *targetPort, []byte(*payload), *count, *timeout, *insecure); err != nil {
+	client := clientInfo{
+		ID:       *clientID,
+		Version:  *clientVersion,
+		Platform: *clientPlatform,
+	}
+	if err := run(*addr, *alpn, *sni, *token, *mode, *targetHost, *targetPort, []byte(*payload), *count, *interval, *timeout, *insecure, client); err != nil {
 		fmt.Fprintf(os.Stderr, "probe failed: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(addr, alpn, sni, token, mode, targetHost string, targetPort int, payload []byte, count int, timeout time.Duration, insecure bool) error {
+type clientInfo struct {
+	ID       string
+	Version  string
+	Platform string
+}
+
+func run(addr, alpn, sni, token, mode, targetHost string, targetPort int, payload []byte, count int, interval, timeout time.Duration, insecure bool, client clientInfo) error {
 	if count <= 0 {
 		count = 1
 	}
@@ -78,13 +93,18 @@ func run(addr, alpn, sni, token, mode, targetHost string, targetPort int, payloa
 		return err
 	}
 	controlCodec := newLineCodec(control)
-	if err := authenticate(ctx, controlCodec, token); err != nil {
+	if err := authenticate(ctx, controlCodec, token, client); err != nil {
 		return err
 	}
 
 	switch strings.ToLower(mode) {
 	case "ping":
-		return probePing(ctx, controlCodec, count)
+		return probePing(ctx, controlCodec, count, interval)
+	case "keepalive":
+		if interval <= 0 {
+			interval = 15 * time.Second
+		}
+		return probePing(ctx, controlCodec, count, interval)
 	case "udp":
 		return probeUDP(ctx, conn, controlCodec, targetHost, targetPort, payload, count)
 	case "tcp":
@@ -94,9 +114,15 @@ func run(addr, alpn, sni, token, mode, targetHost string, targetPort int, payloa
 	}
 }
 
-func authenticate(ctx context.Context, codec *lineCodec, token string) error {
+func authenticate(ctx context.Context, codec *lineCodec, token string, client clientInfo) error {
 	if err := writeWithContext(ctx, func() error {
-		return codec.Write(protocol.Message{Type: protocol.MessageHello, Version: protocol.Version})
+		return codec.Write(protocol.Message{
+			Type:           protocol.MessageHello,
+			Version:        protocol.Version,
+			ClientID:       client.ID,
+			ClientVersion:  client.Version,
+			ClientPlatform: client.Platform,
+		})
 	}); err != nil {
 		return err
 	}
@@ -107,9 +133,17 @@ func authenticate(ctx context.Context, codec *lineCodec, token string) error {
 	if msg.Type != protocol.MessageHello {
 		return fmt.Errorf("unexpected hello response: %s", msg.Type)
 	}
+	printServerInfo(msg.Server)
 
 	if err := writeWithContext(ctx, func() error {
-		return codec.Write(protocol.Message{Type: protocol.MessageAuth, Token: token})
+		return codec.Write(protocol.Message{
+			Type:           protocol.MessageAuth,
+			Version:        protocol.Version,
+			Token:          token,
+			ClientID:       client.ID,
+			ClientVersion:  client.Version,
+			ClientPlatform: client.Platform,
+		})
 	}); err != nil {
 		return err
 	}
@@ -120,11 +154,15 @@ func authenticate(ctx context.Context, codec *lineCodec, token string) error {
 	if msg.Type != protocol.MessageAuthOK {
 		return messageError(msg, "auth failed")
 	}
-	fmt.Println("authenticated")
+	if msg.UserID != "" || msg.DeviceID != "" {
+		fmt.Printf("authenticated user_id=%s device_id=%s\n", msg.UserID, msg.DeviceID)
+	} else {
+		fmt.Println("authenticated")
+	}
 	return nil
 }
 
-func probePing(ctx context.Context, codec *lineCodec, count int) error {
+func probePing(ctx context.Context, codec *lineCodec, count int, interval time.Duration) error {
 	for i := 0; i < count; i++ {
 		start := time.Now()
 		if err := writeWithContext(ctx, func() error {
@@ -140,8 +178,31 @@ func probePing(ctx context.Context, codec *lineCodec, count int) error {
 			return messageError(msg, "unexpected ping response")
 		}
 		fmt.Printf("ping %d ok latency=%s\n", i+1, time.Since(start))
+		if interval > 0 && i+1 < count {
+			timer := time.NewTimer(interval)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return ctx.Err()
+			case <-timer.C:
+			}
+		}
 	}
 	return nil
+}
+
+func printServerInfo(info *protocol.ServerInfo) {
+	if info == nil {
+		return
+	}
+	fmt.Printf(
+		"server protocol=%d alpn=%s keepalive=%ds datagram_payload=%d capabilities=%s\n",
+		info.ProtocolVersion,
+		info.ALPN,
+		info.KeepaliveIntervalSeconds,
+		info.RecommendedDatagramPayloadBytes,
+		strings.Join(info.Capabilities, ","),
+	)
 }
 
 func probeUDP(ctx context.Context, conn *quic.Conn, codec *lineCodec, targetHost string, targetPort int, payload []byte, count int) error {

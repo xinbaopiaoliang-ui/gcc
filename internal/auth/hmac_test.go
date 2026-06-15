@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -60,6 +61,8 @@ func TestHMACTokenRejectsExpiredToken(t *testing.T) {
 
 	if _, err := VerifyHMACToken(token, "secret", 0, now); err == nil {
 		t.Fatal("VerifyHMACToken returned nil error for expired token")
+	} else if !errors.Is(err, ErrTokenExpired) {
+		t.Fatalf("VerifyHMACToken error = %v, want ErrTokenExpired", err)
 	}
 }
 
@@ -74,6 +77,26 @@ func TestHMACTokenRequiresExpiration(t *testing.T) {
 
 	if _, err := VerifyHMACToken(token, "secret", 0, now); err == nil {
 		t.Fatal("VerifyHMACToken returned nil error for token without exp")
+	} else if !errors.Is(err, ErrTokenMissingExpiration) {
+		t.Fatalf("VerifyHMACToken error = %v, want ErrTokenMissingExpiration", err)
+	}
+}
+
+func TestHMACTokenRejectsNotActiveToken(t *testing.T) {
+	now := time.Unix(1000, 0)
+	token, err := SignHMACToken(TokenClaims{
+		UserID:    "user-1",
+		NotBefore: now.Add(time.Minute).Unix(),
+		ExpiresAt: now.Add(time.Hour).Unix(),
+	}, "secret")
+	if err != nil {
+		t.Fatalf("SignHMACToken returned error: %v", err)
+	}
+
+	if _, err := VerifyHMACToken(token, "secret", 0, now); err == nil {
+		t.Fatal("VerifyHMACToken returned nil error for not active token")
+	} else if !errors.Is(err, ErrTokenNotActive) {
+		t.Fatalf("VerifyHMACToken error = %v, want ErrTokenNotActive", err)
 	}
 }
 

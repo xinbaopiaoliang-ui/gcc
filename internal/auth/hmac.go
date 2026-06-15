@@ -137,7 +137,7 @@ func VerifyHMACToken(token, secret string, leeway time.Duration, now time.Time) 
 	}
 
 	if claims.ExpiresAt == 0 {
-		return nil, fmt.Errorf("%w: missing exp", ErrInvalidToken)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidToken, ErrTokenMissingExpiration)
 	}
 	if claims.MaxConnections < 0 {
 		return nil, fmt.Errorf("%w: negative max_connections", ErrInvalidToken)
@@ -151,13 +151,13 @@ func VerifyHMACToken(token, secret string, leeway time.Duration, now time.Time) 
 	nowUnix := now.Unix()
 	leewaySeconds := int64(leeway / time.Second)
 	if nowUnix > claims.ExpiresAt+leewaySeconds {
-		return nil, fmt.Errorf("%w: token expired", ErrInvalidToken)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidToken, ErrTokenExpired)
 	}
 	if claims.NotBefore > 0 && nowUnix+leewaySeconds < claims.NotBefore {
-		return nil, fmt.Errorf("%w: token not active yet", ErrInvalidToken)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidToken, ErrTokenNotActive)
 	}
 	if claims.IssuedAt > 0 && nowUnix+leewaySeconds < claims.IssuedAt {
-		return nil, fmt.Errorf("%w: token issued in the future", ErrInvalidToken)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidToken, ErrTokenIssuedInFuture)
 	}
 	return &claims, nil
 }

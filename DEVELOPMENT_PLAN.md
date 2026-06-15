@@ -229,7 +229,18 @@ admin:
 - [x] Release workflow 打包 token 工具。
 - [x] /sessions 输出 device_id、有效限额和 TCP/UDP 权限，方便面板侧排查。
 
-### 阶段 10：节点运维与面板对接
+### 阶段 10：v0.3.0 客户端联调协议稳定版
+
+- [x] HELLO/AUTH_OK 返回协议版本、ALPN、服务端能力和保活建议。
+- [x] AUTH 支持 client_id、client_version、client_platform 元信息。
+- [x] /sessions 输出 client_id、client_version、client_platform、last_ping_at、connected_duration。
+- [x] 明确鉴权错误码：auth_failed、token_expired、token_not_active、token_missing_exp、token_invalid。
+- [x] 明确转发错误码：permission_denied、target_denied、rate_limited、max_flows_exceeded、open_udp_failed、open_tcp_failed。
+- [x] gaccel-probe 支持模拟客户端元信息和持续保活测试。
+- [x] 客户端联调协议文档补齐握手、保活、重连、token 过期策略。
+- [x] 回归测试覆盖 token 错误分类和 session metadata。
+
+### 阶段 11：节点运维与面板对接
 
 - [ ] 增加节点 ID、区域、标签等节点元数据配置。
 - [ ] 增加节点到面板的 heartbeat/report 客户端，只上报节点状态和版本，不做客户端订阅下发。

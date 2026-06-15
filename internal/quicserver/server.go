@@ -127,41 +127,48 @@ func (s *Server) handleControlStream(ctx context.Context, session *connSession, 
 
 		switch msg.Type {
 		case protocol.MessageHello:
+			session.record.SetClientInfo(msg.ClientID, msg.ClientVersion, msg.ClientPlatform, msg.Version)
 			_ = codec.Write(protocol.Message{
 				Type:    protocol.MessageHello,
 				Version: protocol.Version,
+				Server:  serverInfo(s.cfg.Current()),
 			})
 		case protocol.MessageAuth:
+			session.record.SetClientInfo(msg.ClientID, msg.ClientVersion, msg.ClientPlatform, msg.Version)
 			principal, err := auth.New(s.cfg.Current().Auth).Authenticate(msg.Token)
 			if err != nil {
-				_ = codec.Write(protocol.ErrorMessage("auth_failed", "authentication failed"))
+				_ = codec.Write(protocol.ErrorMessage(authErrorCode(err), authErrorText(err)))
 				return
 			}
 			if err := session.setPrincipal(principal); err != nil {
-				_ = codec.Write(protocol.ErrorMessage("auth_failed", err.Error()))
+				_ = codec.Write(protocol.ErrorMessage(authErrorCode(err), err.Error()))
 				return
 			}
 			logger.Info("authenticated", "user_id", principal.UserID)
 			_ = codec.Write(protocol.Message{
-				Type:    protocol.MessageAuthOK,
-				Version: protocol.Version,
+				Type:     protocol.MessageAuthOK,
+				Version:  protocol.Version,
+				UserID:   principal.UserID,
+				DeviceID: principal.DeviceID,
+				Server:   serverInfo(s.cfg.Current()),
 			})
 		case protocol.MessagePing:
 			if !session.authenticated() {
-				_ = codec.Write(protocol.ErrorMessage("unauthorized", "authenticate first"))
+				_ = codec.Write(protocol.ErrorMessage(protocol.ErrorUnauthorized, "authenticate first"))
 				return
 			}
+			session.record.MarkPing()
 			_ = codec.Write(protocol.Message{Type: protocol.MessagePong})
 		case protocol.MessageOpenUDP:
 			if !session.authenticated() {
-				_ = codec.Write(protocol.ErrorMessage("unauthorized", "authenticate first"))
+				_ = codec.Write(protocol.ErrorMessage(protocol.ErrorUnauthorized, "authenticate first"))
 				return
 			}
 			flowID, err := session.openUDP(ctx, msg.TargetHost, msg.TargetPort)
 			if err != nil {
 				s.collector.FlowOpenFailed("udp", flowFailureReason(err))
 				logger.Debug("open udp failed", "target_host", msg.TargetHost, "target_port", msg.TargetPort, "error", err)
-				_ = codec.Write(protocol.ErrorMessage("open_udp_failed", err.Error()))
+				_ = codec.Write(protocol.ErrorMessage(flowErrorCode("udp", err), err.Error()))
 				return
 			}
 			_ = codec.Write(protocol.Message{
@@ -170,14 +177,14 @@ func (s *Server) handleControlStream(ctx context.Context, session *connSession, 
 			})
 		case protocol.MessageOpenTCP:
 			if !session.authenticated() {
-				_ = codec.Write(protocol.ErrorMessage("unauthorized", "authenticate first"))
+				_ = codec.Write(protocol.ErrorMessage(protocol.ErrorUnauthorized, "authenticate first"))
 				return
 			}
 			flowID, targetConn, release, err := session.openTCPTarget(ctx, msg.TargetHost, msg.TargetPort)
 			if err != nil {
 				s.collector.FlowOpenFailed("tcp", flowFailureReason(err))
 				logger.Debug("open tcp failed", "target_host", msg.TargetHost, "target_port", msg.TargetPort, "error", err)
-				_ = codec.Write(protocol.ErrorMessage("open_tcp_failed", err.Error()))
+				_ = codec.Write(protocol.ErrorMessage(flowErrorCode("tcp", err), err.Error()))
 				return
 			}
 			_ = codec.Write(protocol.Message{
@@ -188,12 +195,12 @@ func (s *Server) handleControlStream(ctx context.Context, session *connSession, 
 			return
 		case protocol.MessageClose:
 			if !session.authenticated() {
-				_ = codec.Write(protocol.ErrorMessage("unauthorized", "authenticate first"))
+				_ = codec.Write(protocol.ErrorMessage(protocol.ErrorUnauthorized, "authenticate first"))
 				return
 			}
 			session.closeFlow(msg.FlowID)
 		default:
-			_ = codec.Write(protocol.ErrorMessage("unknown_message", "unknown message type"))
+			_ = codec.Write(protocol.ErrorMessage(protocol.ErrorUnknownMessage, "unknown message type"))
 		}
 	}
 }
@@ -230,6 +237,67 @@ func flowFailureReason(err error) string {
 		return "limit"
 	}
 	return "error"
+}
+
+func authErrorCode(err error) string {
+	switch {
+	case errors.Is(err, auth.ErrTokenExpired):
+		return protocol.ErrorTokenExpired
+	case errors.Is(err, auth.ErrTokenNotActive), errors.Is(err, auth.ErrTokenIssuedInFuture):
+		return protocol.ErrorTokenNotActive
+	case errors.Is(err, auth.ErrTokenMissingExpiration):
+		return protocol.ErrorTokenMissingExp
+	case errors.Is(err, metrics.ErrUserConnectionLimitExceeded):
+		return protocol.ErrorMaxConnectionsExceeded
+	case errors.Is(err, auth.ErrInvalidToken):
+		return protocol.ErrorTokenInvalid
+	default:
+		return protocol.ErrorAuthFailed
+	}
+}
+
+func authErrorText(err error) string {
+	switch authErrorCode(err) {
+	case protocol.ErrorTokenExpired:
+		return "token expired"
+	case protocol.ErrorTokenNotActive:
+		return "token not active"
+	case protocol.ErrorTokenMissingExp:
+		return "token missing exp"
+	case protocol.ErrorTokenInvalid:
+		return "invalid token"
+	default:
+		return "authentication failed"
+	}
+}
+
+func flowErrorCode(network string, err error) string {
+	switch {
+	case errors.Is(err, auth.ErrPermissionDenied):
+		return protocol.ErrorPermissionDenied
+	case errors.Is(err, router.ErrTargetDenied):
+		return protocol.ErrorTargetDenied
+	case strings.Contains(err.Error(), "max flows"):
+		return protocol.ErrorMaxFlowsExceeded
+	default:
+		if network == "tcp" {
+			return protocol.ErrorOpenTCPFailed
+		}
+		return protocol.ErrorOpenUDPFailed
+	}
+}
+
+func serverInfo(cfg *config.Config) *protocol.ServerInfo {
+	return &protocol.ServerInfo{
+		ALPN:                            cfg.Server.ALPN,
+		ProtocolVersion:                 protocol.Version,
+		Capabilities:                    []string{"auth_hmac", "udp_datagram", "tcp_stream", "ping", "flow_close_notify"},
+		KeepaliveIntervalSeconds:        15,
+		DatagramHeaderBytes:             protocol.DatagramHeaderLen,
+		RecommendedDatagramBytes:        protocol.RecommendedDatagramBytes,
+		RecommendedDatagramPayloadBytes: protocol.RecommendedDatagramPayloadBytes,
+		TokenPolicy:                     "validated_on_auth",
+	}
 }
 
 func loadTLSConfig(cfg *config.Config) (*tls.Config, error) {

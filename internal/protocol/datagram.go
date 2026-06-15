@@ -6,6 +6,8 @@ import (
 )
 
 const DatagramHeaderLen = 11
+const RecommendedDatagramBytes = 1200
+const RecommendedDatagramPayloadBytes = RecommendedDatagramBytes - DatagramHeaderLen
 
 const (
 	DatagramTypeUDP byte = 1

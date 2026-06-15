@@ -1,0 +1,43 @@
+server:
+  listen: ":443"
+  alpn: "gaccel/1"
+  cert_file: "./cert.pem"
+  key_file: "./key.pem"
+
+auth:
+  mode: "dev"
+  dev_tokens:
+    - "dev-token"
+
+limits:
+  max_quic_connections: 50000
+  max_user_connections: 8
+  max_flows_per_conn: 256
+  quic_idle_timeout: "60s"
+  udp_idle_timeout: "60s"
+  tcp_idle_timeout: "10m"
+  user_rate_limit_mbps: 100
+
+security:
+  deny_private_ip: true
+  deny_loopback: true
+  deny_link_local: true
+  deny_multicast: true
+  deny_cloud_metadata: true
+  allowed_udp_ports:
+    - "1-65535"
+  allowed_tcp_ports:
+    - "80"
+    - "443"
+    - "1935"
+    - "5222"
+    - "27000-65535"
+  blocked_tcp_ports:
+    - "22"
+    - "25"
+    - "3306"
+    - "5432"
+    - "6379"
+
+admin:
+  listen: "127.0.0.1:9090"

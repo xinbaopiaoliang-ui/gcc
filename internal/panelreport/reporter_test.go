@@ -6,6 +6,7 @@ import (
 
 	"gaccel-node/internal/config"
 	"gaccel-node/internal/metrics"
+	"gaccel-node/internal/panelcommand"
 )
 
 func TestBuildPayloadIncludesNodeAndVersion(t *testing.T) {
@@ -36,5 +37,29 @@ func TestBuildPayloadIncludesNodeAndVersion(t *testing.T) {
 	}
 	if !payload.Timestamp.Equal(now) {
 		t.Fatalf("Timestamp = %s, want %s", payload.Timestamp, now)
+	}
+}
+
+func TestBuildPayloadIncludesCommandResults(t *testing.T) {
+	cfg := config.Default()
+	now := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
+	results := []panelcommand.CommandResult{
+		{
+			ID:         "cmd-stage-upgrade-1",
+			Type:       panelcommand.CommandStageUpgrade,
+			OK:         true,
+			ExecutedAt: now,
+			Details: map[string]any{
+				"version": "0.3.3",
+			},
+		},
+	}
+
+	payload := BuildPayload(cfg, metrics.Snapshot{}, "0.3.3-test", now, results)
+	if len(payload.PanelCommands) != 1 {
+		t.Fatalf("len(PanelCommands) = %d, want 1", len(payload.PanelCommands))
+	}
+	if payload.PanelCommands[0].ID != "cmd-stage-upgrade-1" {
+		t.Fatalf("PanelCommands[0].ID = %q", payload.PanelCommands[0].ID)
 	}
 }

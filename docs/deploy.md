@@ -60,6 +60,7 @@ node:
 
 ```bash
 curl http://127.0.0.1:5557/status
+curl http://127.0.0.1:5557/panel/commands
 ```
 
 ## 面板状态上报

@@ -45,8 +45,9 @@ func main() {
 
 	collector := metrics.NewCollector()
 	sessionRegistry := sessions.NewRegistry()
+	commandResults := panelcommand.NewResultHistory(50)
 
-	adminServer := admin.NewServer(cfgManager, logger, collector, sessionRegistry)
+	adminServer := admin.NewServer(cfgManager, logger, collector, sessionRegistry, commandResults)
 	go func() {
 		if err := adminServer.ListenAndServe(ctx); err != nil {
 			logger.Error("admin server stopped", "error", err)
@@ -54,10 +55,11 @@ func main() {
 		}
 	}()
 
-	reporter := panelreport.New(cfgManager, logger, collector, version)
+	reporter := panelreport.New(cfgManager, logger, collector, version, commandResults)
 	go reporter.Run(ctx)
 
 	commandClient := panelcommand.New(cfgManager, logger, version)
+	commandClient.SetResultCollector(commandResults)
 	go commandClient.Run(ctx)
 
 	server, err := quicserver.New(cfgManager, logger, collector, sessionRegistry)

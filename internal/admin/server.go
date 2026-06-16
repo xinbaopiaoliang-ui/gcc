@@ -11,22 +11,33 @@ import (
 
 	"gaccel-node/internal/config"
 	"gaccel-node/internal/metrics"
+	"gaccel-node/internal/panelcommand"
 	"gaccel-node/internal/sessions"
 )
 
 type Server struct {
-	cfg       *config.Manager
-	logger    *slog.Logger
-	collector *metrics.Collector
-	sessions  *sessions.Registry
+	cfg            *config.Manager
+	logger         *slog.Logger
+	collector      *metrics.Collector
+	sessions       *sessions.Registry
+	commandResults CommandResultSnapshotter
 }
 
-func NewServer(cfg *config.Manager, logger *slog.Logger, collector *metrics.Collector, sessionRegistry *sessions.Registry) *Server {
+type CommandResultSnapshotter interface {
+	Snapshot() []panelcommand.CommandResult
+}
+
+func NewServer(cfg *config.Manager, logger *slog.Logger, collector *metrics.Collector, sessionRegistry *sessions.Registry, commandResults ...CommandResultSnapshotter) *Server {
+	var resultSnapshotter CommandResultSnapshotter
+	if len(commandResults) > 0 {
+		resultSnapshotter = commandResults[0]
+	}
 	return &Server{
-		cfg:       cfg,
-		logger:    logger.With("component", "admin"),
-		collector: collector,
-		sessions:  sessionRegistry,
+		cfg:            cfg,
+		logger:         logger.With("component", "admin"),
+		collector:      collector,
+		sessions:       sessionRegistry,
+		commandResults: resultSnapshotter,
 	}
 }
 
@@ -35,6 +46,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	mux.HandleFunc("/health", s.handleHealth)
 	mux.HandleFunc("/status", s.handleStatus)
 	mux.HandleFunc("/sessions", s.handleSessions)
+	mux.HandleFunc("/panel/commands", s.handlePanelCommands)
 	mux.HandleFunc("/metrics", s.handleMetrics)
 	mux.HandleFunc("/config/reload", s.handleConfigReload)
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
@@ -75,7 +87,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 	cfg := s.cfg.Current()
-	writeJSON(w, http.StatusOK, map[string]any{
+	payload := map[string]any{
 		"status": "ok",
 		"config": map[string]any{
 			"path": s.cfg.Path(),
@@ -86,7 +98,11 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 		},
 		"node":    cfg.Node,
 		"metrics": s.collector.Snapshot(),
-	})
+	}
+	if s.commandResults != nil {
+		payload["panel_commands"] = s.commandResults.Snapshot()
+	}
+	writeJSON(w, http.StatusOK, payload)
 }
 
 func (s *Server) handleMetrics(w http.ResponseWriter, _ *http.Request) {
@@ -97,6 +113,16 @@ func (s *Server) handleMetrics(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) handleSessions(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"sessions": s.sessions.Snapshot(),
+	})
+}
+
+func (s *Server) handlePanelCommands(w http.ResponseWriter, _ *http.Request) {
+	commands := []panelcommand.CommandResult{}
+	if s.commandResults != nil {
+		commands = s.commandResults.Snapshot()
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"commands": commands,
 	})
 }
 

@@ -84,11 +84,28 @@ User-Agent: gaccel-node/<version>
     "tcp_target_to_client_bytes": 0,
     "users": [],
     "flow_events": []
-  }
+  },
+  "panel_commands": [
+    {
+      "id": "cmd-stage-upgrade-1",
+      "type": "stage_upgrade",
+      "ok": true,
+      "details": {
+        "version": "0.3.3",
+        "sha256": "7f0d...64hex",
+        "size_bytes": 12345678,
+        "file_path": "/var/lib/gaccel-node/upgrades/0.3.3/gaccel-node_0.3.3_linux-amd64.tar.gz",
+        "manifest_path": "/var/lib/gaccel-node/upgrades/0.3.3/manifest.json",
+        "staged_at": "2026-06-16T12:00:00Z"
+      },
+      "executed_at": "2026-06-16T12:00:00Z"
+    }
+  ]
 }
 ```
 
 面板返回任意 `2xx` 即认为成功。非 `2xx` 或请求失败会记录 warning 日志，下个周期继续上报。
+`panel_commands` 为空时会省略；有命令执行后会携带最近的执行结果，面板可据此确认运维命令成功或失败。
 
 ## 运维命令拉取
 

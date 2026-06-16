@@ -279,12 +279,13 @@ unknown_message
 GET /health
 GET /status
 GET /sessions
+GET /panel/commands
 GET /metrics
 POST /config/reload
 GET /debug/pprof/
 ```
 
-`/status` 会输出节点状态、监听地址、节点元数据和指标快照。节点元数据来自配置文件的 `node` 段：
+`/status` 会输出节点状态、监听地址、节点元数据、指标快照和最近面板命令执行结果。节点元数据来自配置文件的 `node` 段：
 
 ```json
 {
@@ -301,6 +302,29 @@ GET /debug/pprof/
 ```
 
 `/sessions` 会输出在线连接、flow、user_id、device_id、client_id、client_version、client_platform、protocol_version、last_ping_at、connected_duration_seconds、有效连接上限、有效限速和 TCP/UDP 权限。
+
+`/panel/commands` 会输出最近的面板命令执行结果，便于确认 `config_reload`、`apply_config` 和 `stage_upgrade` 是否成功：
+
+```json
+{
+  "commands": [
+    {
+      "id": "cmd-stage-upgrade-1",
+      "type": "stage_upgrade",
+      "ok": true,
+      "details": {
+        "version": "0.3.3",
+        "sha256": "7f0d...64hex",
+        "size_bytes": 12345678,
+        "file_path": "/var/lib/gaccel-node/upgrades/0.3.3/gaccel-node_0.3.3_linux-amd64.tar.gz",
+        "manifest_path": "/var/lib/gaccel-node/upgrades/0.3.3/manifest.json",
+        "staged_at": "2026-06-16T12:00:00Z"
+      },
+      "executed_at": "2026-06-16T12:00:00Z"
+    }
+  ]
+}
+```
 
 `/config/reload` 会重新读取启动时的配置文件路径。新鉴权、新连接、新 flow 会读取最新配置；监听地址、TLS 证书和 QUIC listener 级参数需要重启进程才能完全生效。
 

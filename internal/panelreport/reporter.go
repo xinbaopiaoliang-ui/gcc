@@ -11,23 +11,30 @@ import (
 
 	"gaccel-node/internal/config"
 	"gaccel-node/internal/metrics"
+	"gaccel-node/internal/panelcommand"
 )
 
 type Reporter struct {
-	cfg       *config.Manager
-	logger    *slog.Logger
-	collector *metrics.Collector
-	version   string
-	client    *http.Client
+	cfg            *config.Manager
+	logger         *slog.Logger
+	collector      *metrics.Collector
+	version        string
+	client         *http.Client
+	commandResults CommandResultSnapshotter
+}
+
+type CommandResultSnapshotter interface {
+	Snapshot() []panelcommand.CommandResult
 }
 
 type Payload struct {
-	Status    string            `json:"status"`
-	Version   string            `json:"version"`
-	Timestamp time.Time         `json:"timestamp"`
-	Node      config.NodeConfig `json:"node"`
-	Server    ServerInfo        `json:"server"`
-	Metrics   metrics.Snapshot  `json:"metrics"`
+	Status        string                       `json:"status"`
+	Version       string                       `json:"version"`
+	Timestamp     time.Time                    `json:"timestamp"`
+	Node          config.NodeConfig            `json:"node"`
+	Server        ServerInfo                   `json:"server"`
+	Metrics       metrics.Snapshot             `json:"metrics"`
+	PanelCommands []panelcommand.CommandResult `json:"panel_commands,omitempty"`
 }
 
 type ServerInfo struct {
@@ -35,13 +42,18 @@ type ServerInfo struct {
 	ALPN   string `json:"alpn"`
 }
 
-func New(cfg *config.Manager, logger *slog.Logger, collector *metrics.Collector, version string) *Reporter {
+func New(cfg *config.Manager, logger *slog.Logger, collector *metrics.Collector, version string, commandResults ...CommandResultSnapshotter) *Reporter {
+	var resultSnapshotter CommandResultSnapshotter
+	if len(commandResults) > 0 {
+		resultSnapshotter = commandResults[0]
+	}
 	return &Reporter{
-		cfg:       cfg,
-		logger:    logger.With("component", "panel-report"),
-		collector: collector,
-		version:   version,
-		client:    &http.Client{},
+		cfg:            cfg,
+		logger:         logger.With("component", "panel-report"),
+		collector:      collector,
+		version:        version,
+		client:         &http.Client{},
+		commandResults: resultSnapshotter,
 	}
 }
 
@@ -75,7 +87,11 @@ func (r *Reporter) report(parent context.Context, cfg *config.Config) error {
 	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 
-	payload := BuildPayload(cfg, r.collector.Snapshot(), r.version, time.Now())
+	var commandResults []panelcommand.CommandResult
+	if r.commandResults != nil {
+		commandResults = r.commandResults.Snapshot()
+	}
+	payload := BuildPayload(cfg, r.collector.Snapshot(), r.version, time.Now(), commandResults)
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -100,8 +116,8 @@ func (r *Reporter) report(parent context.Context, cfg *config.Config) error {
 	return nil
 }
 
-func BuildPayload(cfg *config.Config, snapshot metrics.Snapshot, version string, now time.Time) Payload {
-	return Payload{
+func BuildPayload(cfg *config.Config, snapshot metrics.Snapshot, version string, now time.Time, commandResults ...[]panelcommand.CommandResult) Payload {
+	payload := Payload{
 		Status:    "ok",
 		Version:   version,
 		Timestamp: now.UTC(),
@@ -112,4 +128,8 @@ func BuildPayload(cfg *config.Config, snapshot metrics.Snapshot, version string,
 		},
 		Metrics: snapshot,
 	}
+	if len(commandResults) > 0 {
+		payload.PanelCommands = commandResults[0]
+	}
+	return payload
 }

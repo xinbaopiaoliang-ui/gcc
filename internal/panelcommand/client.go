@@ -91,6 +91,14 @@ func New(cfg *config.Manager, logger *slog.Logger, version string) *Client {
 	}
 }
 
+func (c *Client) SetResultCollector(collector ResultCollector) {
+	if collector == nil {
+		c.collector = noopCollector{}
+		return
+	}
+	c.collector = collector
+}
+
 func (c *Client) Run(ctx context.Context) {
 	for {
 		cfg := c.cfg.Current()

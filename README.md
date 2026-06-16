@@ -69,12 +69,14 @@ go run ./cmd/server -config config.yaml
 http://127.0.0.1:9090/health
 http://127.0.0.1:9090/status
 http://127.0.0.1:9090/sessions
+http://127.0.0.1:9090/panel/commands
 http://127.0.0.1:9090/metrics
 POST http://127.0.0.1:9090/config/reload
 http://127.0.0.1:9090/debug/pprof/
 ```
 
 `/sessions` 会输出在线连接、flow、user_id、device_id、client_id、client_version、client_platform、last_ping_at、有效连接上限、有效限速和 TCP/UDP 权限，方便客户端联调和后续面板侧排查节点状态。
+`/panel/commands` 会输出最近的面板命令执行结果，包含成功/失败、错误信息和 `stage_upgrade` 暂存包详情。
 
 ## 测试工具
 

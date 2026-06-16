@@ -287,6 +287,13 @@ admin:
 - [x] 本地交叉构建验证 Linux 节点包与 Windows Demo。
 - [x] 推送 v0.3.2 tag 触发 GitHub Release。
 
+### 阶段 16：v0.3.3 安全升级联调与结果回传
+
+- [x] 面板命令执行结果进入节点状态快照和 heartbeat/report，便于确认 `stage_upgrade` 是否成功。
+- [ ] 提供 v0.3.3 发布包并验证 `stage_upgrade` 暂存流程。
+- [ ] 编写面板下发 `stage_upgrade` 的端到端测试脚本或示例。
+- [ ] 补充升级切换与人工回滚 Runbook。
+
 ## 已知风险与注意事项
 
 - QUIC Datagram 不保证可靠到达，适合 UDP 实时游戏包；控制消息和 TCP 必须走 Stream。

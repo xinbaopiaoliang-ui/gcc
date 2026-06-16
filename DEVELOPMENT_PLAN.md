@@ -306,6 +306,10 @@ admin:
 
 - [x] 输出业务后台 MySQL 表结构、客户端配置格式、节点策略格式和 TCP/UDP flow metadata 文档。
 
+### 阶段 19：客户端与节点正式联调协议文档
+
+- [x] 输出面向客户端/AI 开发的严谨联调协议说明，明确连接状态机、TCP/UDP flow、metadata、错误处理和禁止行为。
+
 ## 已知风险与注意事项
 
 - QUIC Datagram 不保证可靠到达，适合 UDP 实时游戏包；控制消息和 TCP 必须走 Stream。

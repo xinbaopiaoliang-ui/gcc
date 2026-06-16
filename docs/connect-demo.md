@@ -17,7 +17,49 @@
 
 节点链路仍然是 QUIC，不是 SOCKS5，不是 VPN，也不是系统 TUN。
 
-## 启动
+## Steam 客户端模式
+
+这是你要优先测的模式：测试 Steam 客户端内置商店、社区、论坛，而不是浏览器单页。
+
+先在 Windows 托盘里完全退出 Steam，再启动：
+
+```powershell
+.\gaccel-connect-demo.exe `
+  -steam-client-mode `
+  -listen 127.0.0.1:18080 `
+  -addr 195.245.242.9:5555 `
+  -token "你的 JWT token" `
+  -client-id steam-client-demo `
+  -client-version 0.4.0-demo `
+  -insecure=true
+```
+
+`-steam-client-mode` 会做三件事：
+
+1. 启动本机 HTTP CONNECT 入口 `127.0.0.1:18080`。
+2. 临时设置 Windows 当前用户系统代理为 `127.0.0.1:18080`。
+3. 拉起 Steam 并打开商店。
+
+然后在 Steam 客户端里面点击：
+
+- 商店首页
+- 社区
+- 讨论/论坛
+- 个人资料或创意工坊页面
+
+成功时 demo 控制台会持续出现类似日志：
+
+```text
+connect opened target=store.steampowered.com:443
+connect opened target=steamcommunity.com:443
+connect opened target=community.akamai.steamstatic.com:443
+```
+
+退出 demo 时会自动恢复之前的 Windows 系统代理。
+
+如果 Steam 已经在后台运行，它可能不会立刻读取新的系统代理；这种情况请从托盘完全退出 Steam 后重新运行上面的命令。
+
+## 普通 CONNECT 模式
 
 ```powershell
 go run ./cmd/gaccel-connect-demo `
@@ -42,8 +84,20 @@ steamusercontent.com
 *.steamusercontent.com
 steamcontent.com
 *.steamcontent.com
+steam-chat.com
+*.steam-chat.com
+steamserver.net
+*.steamserver.net
+steamgames.com
+*.steamgames.com
+steam-api.com
+*.steam-api.com
+valvesoftware.com
+*.valvesoftware.com
 akamaihd.net
 *.akamaihd.net
+fastly.net
+*.fastly.net
 ```
 
 如需临时补充域名：
@@ -81,13 +135,13 @@ connect opened target=steamcommunity.com:443
 
 节点 `/sessions` 会看到 `client_id=steam-connect-demo`，并出现 TCP flow。
 
-## Steam 客户端验证
+## Steam 客户端验证说明
 
 Steam 客户端是否使用系统代理取决于它内部 WebView 和系统环境。建议顺序：
 
-1. 先用 Edge/Chrome 验证 `store.steampowered.com` 和 `steamcommunity.com/discussions/`。
-2. 打开 Windows 系统代理，地址填 `127.0.0.1`，端口填 `18080`。
-3. 重启 Steam，打开商店和论坛页面。
+1. 完全退出 Steam。
+2. 使用 `-steam-client-mode` 启动 demo。
+3. Steam 自动打开后，直接在 Steam 客户端里打开商店、社区和论坛页面。
 4. 如果 demo 没有任何 `connect opened` 日志，说明 Steam 当前没有走系统代理，需要 Rust 客户端后续做更底层的本地流量接入。
 
 这个 demo 的价值是给 Rust 客户端确认：

@@ -297,6 +297,7 @@ admin:
 ### 阶段 17：v0.4.0 客户端真实流量联调 Demo
 
 - [x] 提供 HTTP CONNECT 到 QUIC `OPEN_TCP` 的 Windows 联调 demo，用于浏览器/Steam WebView 访问 Steam 商店和论坛。
+- [x] demo 支持 `-steam-client-mode`，临时设置 Windows 当前用户系统代理并拉起 Steam 客户端进行商店/社区联调。
 - [x] demo 默认只监听本机地址，只允许 Steam 相关域名和 443 端口，避免成为开放代理。
 - [x] Release workflow 打包 `gaccel-connect-demo_<version>_windows-amd64.zip`。
 - [x] 补充 CONNECT demo 使用文档和 Rust 客户端参考说明。

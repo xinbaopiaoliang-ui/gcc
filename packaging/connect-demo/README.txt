@@ -8,16 +8,28 @@ targets to gaccel-node over the native QUIC protocol.
 
 Quick start:
 
-1. Start the demo:
+1. Fully exit Steam from the Windows tray.
 
-   gaccel-connect-demo.exe -listen 127.0.0.1:18080 -addr 195.245.242.9:5555 -token "YOUR_JWT_TOKEN" -insecure=true
+2. Start Steam client mode:
 
-2. Test with Edge:
+   gaccel-connect-demo.exe -steam-client-mode -listen 127.0.0.1:18080 -addr 195.245.242.9:5555 -token "YOUR_JWT_TOKEN" -insecure=true
+
+3. Steam will be launched. Open Store, Community, Discussions, Workshop, or profile pages inside Steam.
+
+4. Watch for logs:
+
+   connect opened target=store.steampowered.com:443
+   connect opened target=steamcommunity.com:443
+
+The demo temporarily sets the current user's Windows system proxy and restores
+the previous proxy when the demo exits.
+
+Browser-only check:
 
    msedge.exe --proxy-server=http://127.0.0.1:18080 https://store.steampowered.com/
    msedge.exe --proxy-server=http://127.0.0.1:18080 https://steamcommunity.com/discussions/
 
-3. Test with curl:
+curl check:
 
    curl.exe -x http://127.0.0.1:18080 https://store.steampowered.com/ -I
    curl.exe -x http://127.0.0.1:18080 https://steamcommunity.com/discussions/ -I

@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	defaultAllowedHosts = "steamcommunity.com,.steamcommunity.com,steampowered.com,.steampowered.com,steamstatic.com,.steamstatic.com,steamusercontent.com,.steamusercontent.com,steamcontent.com,.steamcontent.com,akamaihd.net,.akamaihd.net"
+	defaultAllowedHosts = "steamcommunity.com,.steamcommunity.com,steampowered.com,.steampowered.com,steamstatic.com,.steamstatic.com,steamusercontent.com,.steamusercontent.com,steamcontent.com,.steamcontent.com,steam-chat.com,.steam-chat.com,steamserver.net,.steamserver.net,steamgames.com,.steamgames.com,steam-api.com,.steam-api.com,valvesoftware.com,.valvesoftware.com,akamaihd.net,.akamaihd.net,fastly.net,.fastly.net"
 	defaultAllowedPorts = "443"
 )
 
@@ -56,6 +56,7 @@ type proxyServer struct {
 	dialTimeout   time.Duration
 	logRequests   bool
 	logger        *slog.Logger
+	onReady       func() error
 	activeTunnels sync.WaitGroup
 }
 
@@ -81,6 +82,11 @@ func main() {
 	keepaliveInterval := flag.Duration("keepalive-interval", 15*time.Second, "QUIC control ping interval")
 	allowNonLocalListen := flag.Bool("allow-nonlocal-listen", false, "allow listening on non-loopback addresses")
 	logRequests := flag.Bool("log-requests", true, "log CONNECT requests")
+	steamClientMode := flag.Bool("steam-client-mode", false, "temporarily set Windows system proxy, launch Steam, and test Steam client Store/Community traffic")
+	setSystemProxy := flag.Bool("set-system-proxy", false, "temporarily set current-user Windows system proxy to this local CONNECT proxy")
+	launchSteam := flag.Bool("launch-steam", false, "launch Steam after the local CONNECT proxy is ready")
+	steamExe := flag.String("steam-exe", "", "path to Steam.exe; empty means auto-detect or use the steam:// URL handler")
+	steamURL := flag.String("steam-url", "steam://open/store", "Steam URL to open when launching Steam")
 	flag.Parse()
 
 	if *showVersion {
@@ -105,6 +111,18 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	systemProxyEnabled := *setSystemProxy || *steamClientMode
+	launchSteamEnabled := *launchSteam || *steamClientMode
+	var restoreSystemProxy func() error
+	defer func() {
+		if restoreSystemProxy != nil {
+			if err := restoreSystemProxy(); err != nil {
+				logger.Warn("restore system proxy failed", "error", err)
+			} else {
+				logger.Info("system proxy restored")
+			}
+		}
+	}()
 
 	relay, err := connectRelay(ctx, relayOptions{
 		addr:     *addr,
@@ -135,10 +153,34 @@ func main() {
 		logRequests: *logRequests,
 		logger:      logger.With("component", "connect-demo"),
 	}
+	server.onReady = func() error {
+		if systemProxyEnabled {
+			restore, err := enableWindowsSystemProxy(*listen)
+			if err != nil {
+				return err
+			}
+			restoreSystemProxy = restore
+			logger.Info("windows system proxy enabled", "proxy", "http://"+*listen)
+		}
+		if launchSteamEnabled {
+			logger.Info("launching Steam", "steam_url", *steamURL)
+			if err := launchSteamClient(*steamExe, *steamURL); err != nil {
+				return err
+			}
+		}
+		if *steamClientMode {
+			logger.Info("Steam client mode is active; open Store and Community inside Steam, then watch for connect opened logs")
+		}
+		return nil
+	}
 	logger.Info("local CONNECT demo listening", "listen", *listen, "node", *addr, "allowed_hosts", *allowedHosts, "allowed_ports", *allowedPorts)
 	logger.Info("set browser or Steam proxy to this local HTTP proxy for testing", "proxy", "http://"+*listen)
 	if err := server.ListenAndServe(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		logger.Error("proxy stopped", "error", err)
+		if restoreSystemProxy != nil {
+			_ = restoreSystemProxy()
+			restoreSystemProxy = nil
+		}
 		os.Exit(1)
 	}
 }
@@ -297,6 +339,11 @@ func (s *proxyServer) ListenAndServe(ctx context.Context) error {
 		return err
 	}
 	defer listener.Close()
+	if s.onReady != nil {
+		if err := s.onReady(); err != nil {
+			return err
+		}
+	}
 
 	go func() {
 		<-ctx.Done()

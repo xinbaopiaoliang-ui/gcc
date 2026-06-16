@@ -192,12 +192,14 @@ GitHub Release 也附带 Windows HTTP CONNECT 联调包：
 gaccel-connect-demo_<version>_windows-amd64.zip
 ```
 
-该包用于让浏览器或 Steam WebView 通过本机 HTTP CONNECT 入口访问 Steam 商店和论坛。demo 到节点之间仍然使用 QUIC `OPEN_TCP`，不是 SOCKS5、TUN 或 VPN。
+该包用于让 Steam 客户端内置商店/社区页面通过本机 HTTP CONNECT 入口访问 Steam 商店和论坛。demo 到节点之间仍然使用 QUIC `OPEN_TCP`，不是 SOCKS5、TUN 或 VPN。
 
 启动示例：
 
 ```powershell
-gaccel-connect-demo.exe -listen 127.0.0.1:18080 -addr 195.245.242.9:5555 -token "你的 JWT token" -insecure=true
+gaccel-connect-demo.exe -steam-client-mode -listen 127.0.0.1:18080 -addr 195.245.242.9:5555 -token "你的 JWT token" -insecure=true
 ```
+
+`-steam-client-mode` 会临时设置 Windows 当前用户系统代理并拉起 Steam。退出 demo 时会恢复原代理。
 
 详细说明见 `docs/connect-demo.md`。

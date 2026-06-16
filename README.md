@@ -207,15 +207,15 @@ GitHub Release 会提供 Windows HTTP CONNECT 联调包：
 gaccel-connect-demo_<version>_windows-amd64.zip
 ```
 
-它不是正式客户端，只是给客户端团队验证真实 Steam 商店/论坛 HTTPS 流量的参考工具。本机浏览器或 Steam WebView 通过 `127.0.0.1:18080` 发起 HTTP CONNECT，demo 再通过 QUIC `OPEN_TCP` 转发到节点。
+它不是正式客户端，只是给客户端团队验证真实 Steam 商店/论坛 HTTPS 流量的参考工具。`-steam-client-mode` 会临时设置 Windows 当前用户系统代理并拉起 Steam，让 Steam 客户端内置商店/社区页面通过 `127.0.0.1:18080` 发起 HTTP CONNECT，demo 再通过 QUIC `OPEN_TCP` 转发到节点。
 
 启动示例：
 
 ```powershell
-gaccel-connect-demo.exe -listen 127.0.0.1:18080 -addr 195.245.242.9:5555 -token "你的 JWT token" -insecure=true
+gaccel-connect-demo.exe -steam-client-mode -listen 127.0.0.1:18080 -addr 195.245.242.9:5555 -token "你的 JWT token" -insecure=true
 ```
 
-浏览器验证：
+如果只想用浏览器验证 CONNECT 行为：
 
 ```powershell
 Start-Process msedge.exe "--proxy-server=http://127.0.0.1:18080 https://store.steampowered.com/"

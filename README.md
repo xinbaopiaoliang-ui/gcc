@@ -161,12 +161,17 @@ node:
 ```yaml
 panel:
   report_url: "https://panel.example.com/api/nodes/report"
+  command_url: "https://panel.example.com/api/nodes/commands"
   api_key: "replace-with-panel-api-key"
+  command_secret: "replace-with-random-command-secret"
   interval: "30s"
   timeout: "10s"
+  command_interval: "30s"
+  command_timeout: "10s"
+  command_max_clock_skew: "2m"
 ```
 
-上报内容包含 `status`、节点版本、时间戳、`node` 元数据、QUIC 监听信息和指标快照。`panel.report_url` 为空时不会启动上报。
+上报内容包含 `status`、节点版本、时间戳、`node` 元数据、QUIC 监听信息和指标快照。`panel.report_url` 为空时不会启动上报。`panel.command_url` 可选开启签名运维命令拉取，当前支持 `noop` 和 `config_reload`。
 
 ## 当前状态
 
@@ -190,6 +195,7 @@ gaccel-steam-demo_<version>_windows-amd64.zip
 - [协议草案](./docs/protocol.md)
 - [Token 获取接口](./docs/token-api.md)
 - [Rust 客户端联调指南](./docs/rust-client.md)
+- [面板对接协议](./docs/panel.md)
 - [部署说明](./docs/deploy.md)
 
 ## 发布新版本

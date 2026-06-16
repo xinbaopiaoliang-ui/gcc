@@ -12,6 +12,7 @@ import (
 	"gaccel-node/internal/admin"
 	"gaccel-node/internal/config"
 	"gaccel-node/internal/metrics"
+	"gaccel-node/internal/panelcommand"
 	"gaccel-node/internal/panelreport"
 	"gaccel-node/internal/quicserver"
 	"gaccel-node/internal/sessions"
@@ -55,6 +56,9 @@ func main() {
 
 	reporter := panelreport.New(cfgManager, logger, collector, version)
 	go reporter.Run(ctx)
+
+	commandClient := panelcommand.New(cfgManager, logger, version)
+	go commandClient.Run(ctx)
 
 	server, err := quicserver.New(cfgManager, logger, collector, sessionRegistry)
 	if err != nil {

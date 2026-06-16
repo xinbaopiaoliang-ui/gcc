@@ -65,10 +65,15 @@ type SecurityConfig struct {
 }
 
 type PanelConfig struct {
-	ReportURL string        `yaml:"report_url"`
-	APIKey    string        `yaml:"api_key"`
-	Interval  time.Duration `yaml:"interval"`
-	Timeout   time.Duration `yaml:"timeout"`
+	ReportURL           string        `yaml:"report_url"`
+	CommandURL          string        `yaml:"command_url"`
+	APIKey              string        `yaml:"api_key"`
+	CommandSecret       string        `yaml:"command_secret"`
+	Interval            time.Duration `yaml:"interval"`
+	Timeout             time.Duration `yaml:"timeout"`
+	CommandInterval     time.Duration `yaml:"command_interval"`
+	CommandTimeout      time.Duration `yaml:"command_timeout"`
+	CommandMaxClockSkew time.Duration `yaml:"command_max_clock_skew"`
 }
 
 type AdminConfig struct {
@@ -122,8 +127,11 @@ func Default() *Config {
 			BlockedTCPPorts:   []string{"22", "25", "3306", "5432", "6379"},
 		},
 		Panel: PanelConfig{
-			Interval: 30 * time.Second,
-			Timeout:  10 * time.Second,
+			Interval:            30 * time.Second,
+			Timeout:             10 * time.Second,
+			CommandInterval:     30 * time.Second,
+			CommandTimeout:      10 * time.Second,
+			CommandMaxClockSkew: 2 * time.Minute,
 		},
 		Admin: AdminConfig{
 			Listen: "127.0.0.1:9090",
@@ -176,12 +184,23 @@ func applyDefaults(cfg *Config) {
 		cfg.Security.AllowedTCPPorts = def.Security.AllowedTCPPorts
 	}
 	cfg.Panel.ReportURL = strings.TrimSpace(cfg.Panel.ReportURL)
+	cfg.Panel.CommandURL = strings.TrimSpace(cfg.Panel.CommandURL)
 	cfg.Panel.APIKey = strings.TrimSpace(cfg.Panel.APIKey)
+	cfg.Panel.CommandSecret = strings.TrimSpace(cfg.Panel.CommandSecret)
 	if cfg.Panel.Interval == 0 {
 		cfg.Panel.Interval = def.Panel.Interval
 	}
 	if cfg.Panel.Timeout == 0 {
 		cfg.Panel.Timeout = def.Panel.Timeout
+	}
+	if cfg.Panel.CommandInterval == 0 {
+		cfg.Panel.CommandInterval = def.Panel.CommandInterval
+	}
+	if cfg.Panel.CommandTimeout == 0 {
+		cfg.Panel.CommandTimeout = def.Panel.CommandTimeout
+	}
+	if cfg.Panel.CommandMaxClockSkew == 0 {
+		cfg.Panel.CommandMaxClockSkew = def.Panel.CommandMaxClockSkew
 	}
 	normalizeNode(&cfg.Node)
 }
@@ -227,21 +246,43 @@ func validatePanel(panel PanelConfig) error {
 	if panel.Timeout < 0 {
 		return errors.New("panel.timeout must be >= 0")
 	}
-	if panel.ReportURL == "" {
+	if panel.CommandInterval < 0 {
+		return errors.New("panel.command_interval must be >= 0")
+	}
+	if panel.CommandTimeout < 0 {
+		return errors.New("panel.command_timeout must be >= 0")
+	}
+	if panel.CommandMaxClockSkew < 0 {
+		return errors.New("panel.command_max_clock_skew must be >= 0")
+	}
+	if (panel.ReportURL != "" || panel.CommandURL != "") && panel.APIKey == "" {
+		return errors.New("panel.api_key is required when panel.report_url or panel.command_url is set")
+	}
+	if panel.CommandURL != "" && panel.CommandSecret == "" {
+		return errors.New("panel.command_secret is required when panel.command_url is set")
+	}
+	if err := validatePanelURL("panel.report_url", panel.ReportURL); err != nil {
+		return err
+	}
+	if err := validatePanelURL("panel.command_url", panel.CommandURL); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validatePanelURL(name, value string) error {
+	if value == "" {
 		return nil
 	}
-	if panel.APIKey == "" {
-		return errors.New("panel.api_key is required when panel.report_url is set")
-	}
-	parsed, err := url.Parse(panel.ReportURL)
+	parsed, err := url.Parse(value)
 	if err != nil {
-		return fmt.Errorf("panel.report_url is invalid: %w", err)
+		return fmt.Errorf("%s is invalid: %w", name, err)
 	}
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return errors.New("panel.report_url must use http or https")
+		return fmt.Errorf("%s must use http or https", name)
 	}
 	if parsed.Host == "" {
-		return errors.New("panel.report_url host is required")
+		return fmt.Errorf("%s host is required", name)
 	}
 	return nil
 }

@@ -306,6 +306,8 @@ GET /debug/pprof/
 
 ## 面板上报 Payload
 
+完整面板对接说明见：[面板对接协议](./panel.md)。
+
 可选配置 `panel.report_url` 后，节点会定时 POST 状态到面板。该接口是节点主动上报，不做客户端订阅下发。
 
 请求头：

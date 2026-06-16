@@ -171,7 +171,7 @@ panel:
   command_max_clock_skew: "2m"
 ```
 
-上报内容包含 `status`、节点版本、时间戳、`node` 元数据、QUIC 监听信息和指标快照。`panel.report_url` 为空时不会启动上报。`panel.command_url` 可选开启签名运维命令拉取，当前支持 `noop` 和 `config_reload`。
+上报内容包含 `status`、节点版本、时间戳、`node` 元数据、QUIC 监听信息和指标快照。`panel.report_url` 为空时不会启动上报。`panel.command_url` 可选开启签名运维命令拉取，当前支持 `noop`、`config_reload` 和 `apply_config`。
 
 ## 当前状态
 

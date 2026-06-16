@@ -1,9 +1,14 @@
 package panelcommand
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -56,6 +61,65 @@ func TestCommandURLAddsNodeID(t *testing.T) {
 	}
 }
 
+func TestExecuteApplyConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	oldData := panelCommandTestConfig("node-old")
+	newData := panelCommandTestConfig("node-new")
+	if err := os.WriteFile(path, oldData, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	manager, err := config.NewManager(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := New(manager, nilLogger(), "test")
+	client.now = func() time.Time { return time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC) }
+
+	payload, err := json.Marshal(ApplyConfigPayload{
+		SHA256:     panelCommandSHA256(newData),
+		ConfigYAML: string(newData),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := client.execute(manager.Current(), Command{
+		ID:        "cmd-apply-config-1",
+		Type:      CommandApplyConfig,
+		IssuedAt:  client.now(),
+		ExpiresAt: client.now().Add(time.Minute),
+		Payload:   payload,
+	})
+	if !result.OK {
+		t.Fatalf("apply_config failed: %s", result.Error)
+	}
+	if manager.Current().Node.ID != "node-new" {
+		t.Fatalf("node id = %q, want node-new", manager.Current().Node.ID)
+	}
+}
+
 func nilLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+func panelCommandTestConfig(nodeID string) []byte {
+	return []byte(`server:
+  listen: ":5555"
+  alpn: "gaccel/1"
+  cert_file: "/tmp/cert.pem"
+  key_file: "/tmp/key.pem"
+
+node:
+  id: "` + nodeID + `"
+
+auth:
+  mode: "dev"
+  dev_tokens:
+    - "dev-token"
+`)
+}
+
+func panelCommandSHA256(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }

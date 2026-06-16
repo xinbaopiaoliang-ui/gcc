@@ -28,6 +28,7 @@ const (
 
 	CommandNoop         = "noop"
 	CommandConfigReload = "config_reload"
+	CommandApplyConfig  = "apply_config"
 )
 
 type Client struct {
@@ -61,7 +62,13 @@ type CommandResult struct {
 	Type       string    `json:"type"`
 	OK         bool      `json:"ok"`
 	Error      string    `json:"error,omitempty"`
+	Details    any       `json:"details,omitempty"`
 	ExecutedAt time.Time `json:"executed_at"`
+}
+
+type ApplyConfigPayload struct {
+	SHA256     string `json:"sha256"`
+	ConfigYAML string `json:"config_yaml"`
 }
 
 func New(cfg *config.Manager, logger *slog.Logger, version string) *Client {
@@ -233,6 +240,22 @@ func (c *Client) execute(cfg *config.Config, command Command) CommandResult {
 			return result
 		}
 		result.OK = true
+	case CommandApplyConfig:
+		var payload ApplyConfigPayload
+		if err := json.Unmarshal(command.Payload, &payload); err != nil {
+			result.Error = "invalid apply_config payload: " + err.Error()
+			return result
+		}
+		applied, err := c.cfg.ApplyPackage([]byte(payload.ConfigYAML), payload.SHA256)
+		if err != nil {
+			result.Error = err.Error()
+			return result
+		}
+		result.OK = true
+		result.Details = map[string]string{
+			"sha256":      applied.SHA256,
+			"backup_path": applied.BackupPath,
+		}
 	default:
 		result.Error = "unsupported command type"
 	}

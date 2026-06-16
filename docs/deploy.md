@@ -83,7 +83,7 @@ panel:
 
 建议面板侧校验 `Authorization: Bearer <api_key>`，并记录节点 `node.id`、`version`、`timestamp`、`metrics.active_quic_connections` 等字段。
 
-如需下发运维命令，配置 `command_url` 和 `command_secret`。节点会主动拉取并校验 HMAC 签名，当前只支持 `noop` 和 `config_reload`，详见 `docs/panel.md`。
+如需下发运维命令，配置 `command_url` 和 `command_secret`。节点会主动拉取并校验 HMAC 签名，当前支持 `noop`、`config_reload` 和 `apply_config`，详见 `docs/panel.md`。
 
 ## systemd
 

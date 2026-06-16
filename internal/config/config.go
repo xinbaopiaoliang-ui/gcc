@@ -81,11 +81,15 @@ type AdminConfig struct {
 }
 
 func Load(path string) (*Config, error) {
-	cfg := Default()
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
+	return LoadData(data)
+}
+
+func LoadData(data []byte) (*Config, error) {
+	cfg := Default()
 	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, err
 	}

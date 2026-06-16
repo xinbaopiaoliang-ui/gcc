@@ -7,7 +7,7 @@
 - 节点主动访问面板，管理 API 不暴露公网。
 - heartbeat/report 只上报状态，不做下发。
 - 运维命令由节点主动拉取，面板响应必须带 HMAC 签名。
-- 第一版命令只支持 `noop` 和 `config_reload`。
+- 第一版命令支持 `noop`、`config_reload` 和 `apply_config`。
 
 ## 配置
 
@@ -204,6 +204,47 @@ signature = "v1=" + hex(hmac_sha256(command_secret, message))
 - 监听地址、TLS 证书和 QUIC listener 级参数仍需要重启节点进程才能完全生效。
 - 如果配置校验失败，命令不会生效，节点会保留旧配置并记录 warning。
 
+### apply_config
+
+下发完整配置包，节点会做 SHA256 校验、YAML 配置校验、原子写入、热重载和失败回滚。
+
+```json
+{
+  "id": "cmd-apply-config-1",
+  "type": "apply_config",
+  "issued_at": "2026-06-16T12:00:00Z",
+  "expires_at": "2026-06-16T12:02:00Z",
+  "payload": {
+    "sha256": "7f0d...64hex",
+    "config_yaml": "server:\n  listen: \":5555\"\n  alpn: \"gaccel/1\"\n  cert_file: \"/etc/gaccel-node/cert.pem\"\n  key_file: \"/etc/gaccel-node/key.pem\"\n..."
+  }
+}
+```
+
+`sha256` 必须按 `config_yaml` 的原始 UTF-8 字节计算。注意不要按 JSON 转义后的字符串计算。
+
+节点处理顺序：
+
+```text
+1. 校验面板命令响应 HMAC 签名。
+2. 校验命令未过期。
+3. 校验 payload.sha256 == sha256(payload.config_yaml)。
+4. 使用节点本地配置解析器预加载 config_yaml。
+5. 配置合法时，写入 <config>.rollback 备份旧配置。
+6. 原子替换当前 config.yaml。
+7. 调用热重载。
+8. 如果热重载失败，恢复旧 config.yaml，并恢复旧内存配置。
+```
+
+成功后，节点日志会记录 `panel command executed`。失败时，节点会记录 warning，旧配置继续生效。
+
+限制：
+
+- `apply_config` 只能更新新鉴权、新连接、新 flow 使用的运行时配置。
+- QUIC 监听地址、TLS 证书路径和 listener 级参数仍需要重启节点进程才能完全生效。
+- 配置包不应包含面板命令密钥的明文回传日志。
+- 面板侧需要保存每次配置包的 SHA256、操作者、发布时间和目标节点。
+
 ## 安全建议
 
 - `panel.api_key` 和 `panel.command_secret` 必须是不同随机值。
@@ -211,4 +252,4 @@ signature = "v1=" + hex(hmac_sha256(command_secret, message))
 - 面板命令接口必须走 HTTPS。
 - 命令必须设置较短 `expires_at`。
 - 面板侧需要记录命令 ID、操作者、目标节点、签名时间和执行结果。
-- 后续配置包/升级包下发必须再做包级 SHA256 或签名校验。
+- 配置包必须带 SHA256；升级包下发后续还需要包级 SHA256 或签名校验。

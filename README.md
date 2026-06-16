@@ -231,6 +231,7 @@ Start-Process msedge.exe "--proxy-server=http://127.0.0.1:18080 https://steamcom
 - [Token 获取接口](./docs/token-api.md)
 - [Rust 客户端联调指南](./docs/rust-client.md)
 - [HTTP CONNECT QUIC 联调 Demo](./docs/connect-demo.md)
+- [业务后台游戏配置与节点策略设计](./docs/backend-game-config.md)
 - [面板对接协议](./docs/panel.md)
 - [部署说明](./docs/deploy.md)
 

@@ -302,6 +302,10 @@ admin:
 - [x] Release workflow 打包 `gaccel-connect-demo_<version>_windows-amd64.zip`。
 - [x] 补充 CONNECT demo 使用文档和 Rust 客户端参考说明。
 
+### 阶段 18：业务后台游戏配置与节点策略模型
+
+- [x] 输出业务后台 MySQL 表结构、客户端配置格式、节点策略格式和 TCP/UDP flow metadata 文档。
+
 ## 已知风险与注意事项
 
 - QUIC Datagram 不保证可靠到达，适合 UDP 实时游戏包；控制消息和 TCP 必须走 Stream。

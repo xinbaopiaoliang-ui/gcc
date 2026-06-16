@@ -84,6 +84,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 			"listen": cfg.Server.Listen,
 			"alpn":   cfg.Server.ALPN,
 		},
+		"node":    cfg.Node,
 		"metrics": s.collector.Snapshot(),
 	})
 }
@@ -119,6 +120,7 @@ func (s *Server) handleConfigReload(w http.ResponseWriter, r *http.Request) {
 			"listen": cfg.Server.Listen,
 			"alpn":   cfg.Server.ALPN,
 		},
+		"node": cfg.Node,
 	})
 }
 

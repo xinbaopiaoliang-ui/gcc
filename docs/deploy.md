@@ -17,7 +17,7 @@ curl -fsSL https://raw.githubusercontent.com/xinbaopiaoliang-ui/gcc/main/scripts
 安装指定版本：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xinbaopiaoliang-ui/gcc/main/scripts/install.sh | sudo env VERSION=v0.3.1 sh
+curl -fsSL https://raw.githubusercontent.com/xinbaopiaoliang-ui/gcc/main/scripts/install.sh | sudo env VERSION=v0.3.2 sh
 ```
 
 安装脚本会：
@@ -41,6 +41,42 @@ sudo openssl req -x509 -newkey rsa:2048 -nodes \
 sudo systemctl start gaccel-node
 sudo systemctl status gaccel-node
 ```
+
+可选填写节点元数据，便于后续面板识别和分组：
+
+```yaml
+node:
+  id: "node-hk-01"
+  region: "hk"
+  tags:
+    - "steam"
+    - "quic"
+  labels:
+    provider: "example"
+    line: "premium"
+```
+
+修改后可通过管理接口确认：
+
+```bash
+curl http://127.0.0.1:5557/status
+```
+
+## 面板状态上报
+
+节点可以主动向面板上报状态：
+
+```yaml
+panel:
+  report_url: "https://panel.example.com/api/nodes/report"
+  api_key: "replace-with-panel-api-key"
+  interval: "30s"
+  timeout: "10s"
+```
+
+该功能只做 heartbeat/report：节点定时 POST 自身状态、版本、节点元数据和指标快照，不接收面板配置下发，也不要求把管理 API 暴露到公网。
+
+建议面板侧校验 `Authorization: Bearer <api_key>`，并记录节点 `node.id`、`version`、`timestamp`、`metrics.active_quic_connections` 等字段。
 
 ## systemd
 
@@ -121,3 +157,13 @@ curl -X POST http://127.0.0.1:9090/config/reload
 ```
 
 热重载会更新新鉴权、新连接、新 flow 使用的运行时策略。监听地址、TLS 证书和 QUIC listener 级参数需要重启进程才能完全生效。
+
+## Windows Steam Demo
+
+GitHub Release 附带 Windows 页面联调包：
+
+```text
+gaccel-steam-demo_<version>_windows-amd64.zip
+```
+
+该包用于本地页面测试 Steam Community 是否能通过 QUIC 节点访问，不会安装到 Linux 服务器，也不会修改 Windows 系统代理。

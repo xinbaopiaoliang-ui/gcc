@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag, for example v0.3.1"
+        description: "Release tag, for example v0.3.2"
         required: true
         type: string
 
@@ -79,6 +79,7 @@ jobs:
           cp docs/protocol.md "dist/${PKG}/docs/protocol.md"
           cp docs/deploy.md "dist/${PKG}/docs/deploy.md"
           cp docs/token-api.md "dist/${PKG}/docs/token-api.md"
+          cp docs/rust-client.md "dist/${PKG}/docs/rust-client.md"
           cp README.md "dist/${PKG}/README.md"
 
           tar -C dist -czf "dist/${PKG}.tar.gz" "${PKG}"
@@ -91,10 +92,54 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
 
+  steam-demo:
+    name: Build Windows Steam demo
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build Windows package
+        env:
+          DISPATCH_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            TAG="${DISPATCH_TAG}"
+          fi
+          VERSION="${TAG#v}"
+          PKG="gaccel-steam-demo_${VERSION}_windows-amd64"
+
+          mkdir -p "dist/${PKG}"
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}-demo" -o "dist/${PKG}/gaccel-steam-demo.exe" ./cmd/gaccel-steam-demo
+          cp packaging/steam-demo/README.txt "dist/${PKG}/README.txt"
+          cp packaging/steam-demo/steam-demo-config.json "dist/${PKG}/steam-demo-config.json"
+          sed -i "s/\"client_version\": \"dev-demo\"/\"client_version\": \"${VERSION}-demo\"/" "dist/${PKG}/steam-demo-config.json"
+
+          (cd dist && zip -r "${PKG}.zip" "${PKG}")
+          rm -rf "dist/${PKG}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gaccel-steam-demo-windows-amd64
+          path: dist/*.zip
+          if-no-files-found: error
+
   publish:
     name: Publish GitHub release
     runs-on: ubuntu-latest
-    needs: release
+    needs:
+      - release
+      - steam-demo
 
     steps:
       - name: Checkout
@@ -110,7 +155,7 @@ jobs:
         run: |
           set -euo pipefail
           cd dist
-          sha256sum *.tar.gz > SHA256SUMS
+          sha256sum *.tar.gz *.zip > SHA256SUMS
 
       - name: Publish release
         env:

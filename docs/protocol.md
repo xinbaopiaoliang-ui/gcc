@@ -284,13 +284,73 @@ POST /config/reload
 GET /debug/pprof/
 ```
 
+`/status` 会输出节点状态、监听地址、节点元数据和指标快照。节点元数据来自配置文件的 `node` 段：
+
+```json
+{
+  "node": {
+    "id": "node-hk-01",
+    "region": "hk",
+    "tags": ["steam", "quic"],
+    "labels": {
+      "provider": "example",
+      "line": "premium"
+    }
+  }
+}
+```
+
 `/sessions` 会输出在线连接、flow、user_id、device_id、client_id、client_version、client_platform、protocol_version、last_ping_at、connected_duration_seconds、有效连接上限、有效限速和 TCP/UDP 权限。
 
 `/config/reload` 会重新读取启动时的配置文件路径。新鉴权、新连接、新 flow 会读取最新配置；监听地址、TLS 证书和 QUIC listener 级参数需要重启进程才能完全生效。
 
+## 面板上报 Payload
+
+可选配置 `panel.report_url` 后，节点会定时 POST 状态到面板。该接口是节点主动上报，不做客户端订阅下发。
+
+请求头：
+
+```http
+Authorization: Bearer <panel.api_key>
+Content-Type: application/json
+User-Agent: gaccel-node/<version>
+```
+
+请求体示例：
+
+```json
+{
+  "status": "ok",
+  "version": "0.3.2",
+  "timestamp": "2026-06-16T12:00:00Z",
+  "node": {
+    "id": "node-hk-01",
+    "region": "hk",
+    "tags": ["steam", "quic"],
+    "labels": {
+      "provider": "example",
+      "line": "premium"
+    }
+  },
+  "server": {
+    "listen": ":5555",
+    "alpn": "gaccel/1"
+  },
+  "metrics": {
+    "active_quic_connections": 0,
+    "active_udp_flows": 0,
+    "active_tcp_flows": 0
+  }
+}
+```
+
+面板返回任意 `2xx` 即认为成功。非 `2xx` 或请求失败会记录 warning 日志，下个周期继续上报。
+
 ## 测试工具
 
 `gaccel-probe` 仅用于协议验证，不是正式客户端。
+
+Rust 客户端开发可参考：[Rust 客户端联调指南](./rust-client.md)。
 
 PING：
 

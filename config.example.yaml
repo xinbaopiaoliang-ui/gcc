@@ -4,6 +4,16 @@ server:
   cert_file: "./cert.pem"
   key_file: "./key.pem"
 
+node:
+  id: "node-hk-01"
+  region: "hk"
+  tags:
+    - "steam"
+    - "quic"
+  labels:
+    provider: "example"
+    line: "premium"
+
 auth:
   mode: "dev"
   dev_tokens:
@@ -40,6 +50,12 @@ security:
     - "3306"
     - "5432"
     - "6379"
+
+panel:
+  report_url: ""
+  api_key: ""
+  interval: "30s"
+  timeout: "10s"
 
 admin:
   listen: "127.0.0.1:9090"

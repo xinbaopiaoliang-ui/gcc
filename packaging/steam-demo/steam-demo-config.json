@@ -1,0 +1,19 @@
+{
+  "node_addr": "195.245.242.9:5555",
+  "alpn": "gaccel/1",
+  "sni": "",
+  "insecure": true,
+  "token_api_url": "http://127.0.0.1:8088/token",
+  "token_api_key": "",
+  "user_id": "dev",
+  "device_id": "steam-demo",
+  "ttl_seconds": 3600,
+  "token": "",
+  "target_host": "steamcommunity.com",
+  "target_port": 443,
+  "http_path": "/",
+  "timeout_seconds": 30,
+  "client_id": "steam-demo",
+  "client_version": "dev-demo",
+  "client_platform": "windows/amd64"
+}

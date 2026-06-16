@@ -1,0 +1,6 @@
+dist/
+*.exe
+config.yaml
+cert.pem
+key.pem
+*.log

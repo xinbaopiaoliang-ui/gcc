@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -32,9 +33,10 @@ func main() {
 	alpn := flag.String("alpn", "gaccel/1", "QUIC ALPN")
 	sni := flag.String("sni", "", "TLS server name")
 	token := flag.String("token", "dev-token", "auth token")
-	mode := flag.String("mode", "ping", "probe mode: ping, keepalive, udp, tcp")
+	mode := flag.String("mode", "ping", "probe mode: ping, keepalive, udp, tcp, https, steam")
 	targetHost := flag.String("target-host", "127.0.0.1", "relay target host")
 	targetPort := flag.Int("target-port", 7, "relay target port")
+	httpPath := flag.String("http-path", "/", "HTTP path for https/steam probes")
 	payload := flag.String("payload", "ping", "payload for udp/tcp probes")
 	count := flag.Int("count", 1, "number of udp packets or ping requests")
 	interval := flag.Duration("interval", 0, "interval between keepalive pings")
@@ -55,7 +57,7 @@ func main() {
 		Version:  *clientVersion,
 		Platform: *clientPlatform,
 	}
-	if err := run(*addr, *alpn, *sni, *token, *mode, *targetHost, *targetPort, []byte(*payload), *count, *interval, *timeout, *insecure, client); err != nil {
+	if err := run(*addr, *alpn, *sni, *token, *mode, *targetHost, *targetPort, *httpPath, []byte(*payload), *count, *interval, *timeout, *insecure, client); err != nil {
 		fmt.Fprintf(os.Stderr, "probe failed: %v\n", err)
 		os.Exit(1)
 	}
@@ -67,7 +69,7 @@ type clientInfo struct {
 	Platform string
 }
 
-func run(addr, alpn, sni, token, mode, targetHost string, targetPort int, payload []byte, count int, interval, timeout time.Duration, insecure bool, client clientInfo) error {
+func run(addr, alpn, sni, token, mode, targetHost string, targetPort int, httpPath string, payload []byte, count int, interval, timeout time.Duration, insecure bool, client clientInfo) error {
 	if count <= 0 {
 		count = 1
 	}
@@ -109,6 +111,19 @@ func run(addr, alpn, sni, token, mode, targetHost string, targetPort int, payloa
 		return probeUDP(ctx, conn, controlCodec, targetHost, targetPort, payload, count)
 	case "tcp":
 		return probeTCP(ctx, conn, targetHost, targetPort, payload)
+	case "https":
+		if targetPort == 7 {
+			targetPort = 443
+		}
+		return probeHTTPS(ctx, conn, targetHost, targetPort, httpPath)
+	case "steam":
+		if targetHost == "" || targetHost == "127.0.0.1" {
+			targetHost = "steamcommunity.com"
+		}
+		if targetPort == 7 {
+			targetPort = 443
+		}
+		return probeHTTPS(ctx, conn, targetHost, targetPort, httpPath)
 	default:
 		return fmt.Errorf("unknown mode %q", mode)
 	}
@@ -299,6 +314,131 @@ func probeTCP(ctx context.Context, conn *quic.Conn, targetHost string, targetPor
 	}
 	fmt.Printf("tcp ok bytes=%d latency=%s payload=%q\n", n, time.Since(start), string(buf[:n]))
 	return nil
+}
+
+func probeHTTPS(ctx context.Context, conn *quic.Conn, targetHost string, targetPort int, path string) error {
+	if path == "" {
+		path = "/"
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	stream, err := conn.OpenStreamSync(ctx)
+	if err != nil {
+		return err
+	}
+	codec := newLineCodec(stream)
+	if err := codec.Write(protocol.Message{
+		Type:       protocol.MessageOpenTCP,
+		TargetHost: targetHost,
+		TargetPort: targetPort,
+	}); err != nil {
+		return err
+	}
+	msg, err := readWithContext(ctx, codec)
+	if err != nil {
+		return err
+	}
+	if msg.Type != protocol.MessageOpenTCP {
+		return messageError(msg, "open tcp failed")
+	}
+	fmt.Printf("tcp flow opened flow_id=%d target=%s:%d\n", msg.FlowID, targetHost, targetPort)
+
+	rawConn := &streamConn{
+		stream: stream,
+		reader: codec.reader,
+		local:  relayAddr("gaccel-probe"),
+		remote: relayAddr(fmt.Sprintf("%s:%d", targetHost, targetPort)),
+	}
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = rawConn.SetDeadline(deadline)
+	}
+
+	start := time.Now()
+	tlsConn := tls.Client(rawConn, &tls.Config{
+		ServerName: targetHost,
+		MinVersion: tls.VersionTLS12,
+	})
+	defer tlsConn.Close()
+	if err := tlsConn.HandshakeContext(ctx); err != nil {
+		return err
+	}
+
+	request := fmt.Sprintf(
+		"GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: gaccel-probe/%s\r\nAccept: */*\r\nConnection: close\r\n\r\n",
+		path,
+		targetHost,
+		version,
+	)
+	if _, err := tlsConn.Write([]byte(request)); err != nil {
+		return err
+	}
+	resp, err := http.ReadResponse(bufio.NewReader(tlsConn), nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	preview, err := io.ReadAll(io.LimitReader(resp.Body, 2048))
+	if err != nil {
+		return err
+	}
+	contentType := resp.Header.Get("Content-Type")
+	location := resp.Header.Get("Location")
+	fmt.Printf("https ok status=%s latency=%s content_type=%q location=%q body_preview=%q\n", resp.Status, time.Since(start), contentType, location, string(preview))
+	return nil
+}
+
+type streamConn struct {
+	stream *quic.Stream
+	reader *bufio.Reader
+	local  net.Addr
+	remote net.Addr
+}
+
+func (c *streamConn) Read(p []byte) (int, error) {
+	return c.reader.Read(p)
+}
+
+func (c *streamConn) Write(p []byte) (int, error) {
+	return c.stream.Write(p)
+}
+
+func (c *streamConn) Close() error {
+	return c.stream.Close()
+}
+
+func (c *streamConn) LocalAddr() net.Addr {
+	return c.local
+}
+
+func (c *streamConn) RemoteAddr() net.Addr {
+	return c.remote
+}
+
+func (c *streamConn) SetDeadline(t time.Time) error {
+	if err := c.stream.SetReadDeadline(t); err != nil {
+		return err
+	}
+	return c.stream.SetWriteDeadline(t)
+}
+
+func (c *streamConn) SetReadDeadline(t time.Time) error {
+	return c.stream.SetReadDeadline(t)
+}
+
+func (c *streamConn) SetWriteDeadline(t time.Time) error {
+	return c.stream.SetWriteDeadline(t)
+}
+
+type relayAddr string
+
+func (a relayAddr) Network() string {
+	return "quic-relay"
+}
+
+func (a relayAddr) String() string {
+	return string(a)
 }
 
 func receiveFlowDatagram(ctx context.Context, conn *quic.Conn, flowID uint32) (*protocol.Datagram, error) {

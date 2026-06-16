@@ -254,12 +254,38 @@ admin:
 
 ### 阶段 12：节点运维与面板对接
 
-- [ ] 增加节点 ID、区域、标签等节点元数据配置。
-- [ ] 增加节点到面板的 heartbeat/report 客户端，只上报节点状态和版本，不做客户端订阅下发。
+- [x] 增加节点 ID、区域、标签等节点元数据配置。
+- [x] 增加节点到面板的 heartbeat/report 客户端，只上报节点状态和版本，不做客户端订阅下发。
 - [ ] 设计面板下发运维指令的签名校验，避免管理 API 暴露公网。
 - [ ] 支持节点配置包校验、热更新和失败回滚。
 - [ ] 支持节点二进制版本检查和安全升级流程。
 - [ ] 补充面板对接协议文档。
+
+### 阶段 13：Steam 社区 QUIC 原生联调测试包
+
+- [x] gaccel-probe 支持 HTTPS/Steam 模式，通过 QUIC OPEN_TCP 直连节点转发 TCP。
+- [x] Steam 模式默认连接 steamcommunity.com:443 并执行 TLS/HTTPS GET。
+- [x] 支持 client_id、client_version、client_platform 元信息。
+- [x] 提供 Windows exe 测试包、启动脚本和说明文档。
+- [x] 提供 Steam 客户端社区访问联调边界说明：测试包只验证 QUIC 节点转发，不做 SOCKS/TUN/VPN。
+- [x] 后续补充 Rust 客户端开发文档。
+
+### 阶段 14：Steam 社区页面 Demo 联调工具
+
+- [x] 提供 gaccel-steam-demo Windows exe，启动本地 Web 控制台。
+- [x] 页面支持编辑节点地址、Token API、JWT Token、Steam 目标和客户端元信息。
+- [x] 页面支持保存/加载本地 JSON 配置文件。
+- [x] 页面支持通过 Token API 申请短期 JWT Token。
+- [x] 页面支持执行 QUIC 原生 Steam 社区 HTTPS 测试并显示日志、状态码、延迟和响应预览。
+- [x] 提供 demo 测试包和说明文档。
+
+### 阶段 15：v0.3.2 联调发布整理
+
+- [x] Release workflow 打包 Windows Steam Demo。
+- [x] Linux Release 包补充 Rust 客户端联调文档。
+- [x] README 和部署文档更新到 v0.3.2。
+- [x] 本地交叉构建验证 Linux 节点包与 Windows Demo。
+- [x] 推送 v0.3.2 tag 触发 GitHub Release。
 
 ## 已知风险与注意事项
 

@@ -23,7 +23,7 @@ curl -fsSL https://raw.githubusercontent.com/xinbaopiaoliang-ui/gcc/main/scripts
 安装指定版本：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xinbaopiaoliang-ui/gcc/main/scripts/install.sh | sudo env VERSION=v0.3.1 sh
+curl -fsSL https://raw.githubusercontent.com/xinbaopiaoliang-ui/gcc/main/scripts/install.sh | sudo env VERSION=v0.3.2 sh
 ```
 
 安装后编辑：
@@ -136,17 +136,60 @@ go run ./cmd/gaccel-token -secret "replace-with-a-long-random-secret" -user user
 curl -X POST http://127.0.0.1:5557/config/reload
 ```
 
+## 节点元数据
+
+节点配置可填写面板识别用的元数据：
+
+```yaml
+node:
+  id: "node-hk-01"
+  region: "hk"
+  tags:
+    - "steam"
+    - "quic"
+  labels:
+    provider: "example"
+    line: "premium"
+```
+
+`GET /status` 会返回 `node` 字段，后续面板可用它做节点展示、筛选和区域调度。
+
+## 面板上报
+
+节点可选开启到面板的 heartbeat/report，只 POST 状态，不接收配置下发：
+
+```yaml
+panel:
+  report_url: "https://panel.example.com/api/nodes/report"
+  api_key: "replace-with-panel-api-key"
+  interval: "30s"
+  timeout: "10s"
+```
+
+上报内容包含 `status`、节点版本、时间戳、`node` 元数据、QUIC 监听信息和指标快照。`panel.report_url` 为空时不会启动上报。
+
 ## 当前状态
 
 已完成项目骨架、配置加载、管理 health/status/sessions/metrics/config reload/pprof 接口、QUIC Listener、Control Stream、HELLO/AUTH/PING、UDP Datagram Relay、TCP Stream Relay、HMAC/JWT 短期 token、基础在线统计、用户级流量统计、flow 原因统计、TCP 关闭通知和测试模拟工具。
 
-当前优先级是 `v0.3.1` token 获取最小 API：提供后端/面板调用的短期 token 签发入口。监听地址、TLS 证书和 QUIC listener 级参数仍需要重启进程才能完全生效。
+当前优先级是 `v0.3.2` 客户端联调与节点面板对接：提供 Rust 联调文档、Steam 页面 demo、节点元数据和面板 heartbeat/report。监听地址、TLS 证书和 QUIC listener 级参数仍需要重启进程才能完全生效。
+
+## Windows Steam Demo
+
+GitHub Release 会提供 Windows 页面联调包：
+
+```text
+gaccel-steam-demo_<version>_windows-amd64.zip
+```
+
+解压后双击 `gaccel-steam-demo.exe`，即可在本地页面填写节点、Token 和 Steam 社区目标进行 QUIC 原生转发测试。
 
 ## 文档
 
 - [开发计划](./DEVELOPMENT_PLAN.md)
 - [协议草案](./docs/protocol.md)
 - [Token 获取接口](./docs/token-api.md)
+- [Rust 客户端联调指南](./docs/rust-client.md)
 - [部署说明](./docs/deploy.md)
 
 ## 发布新版本
@@ -154,6 +197,6 @@ curl -X POST http://127.0.0.1:5557/config/reload
 推送 `v*` tag 会触发 GitHub Release 自动打包：
 
 ```bash
-git tag v0.3.1
-git push origin v0.3.1
+git tag v0.3.2
+git push origin v0.3.2
 ```

@@ -37,7 +37,7 @@ token 策略：当前版本只在 `AUTH` 时校验 token。已建立连接不会
   "type": "HELLO",
   "version": 1,
   "client_id": "client-instance-1",
-  "client_version": "0.3.0",
+  "client_version": "0.3.1",
   "client_platform": "windows/amd64"
 }
 ```
@@ -73,7 +73,7 @@ token 策略：当前版本只在 `AUTH` 时校验 token。已建立连接不会
   "version": 1,
   "token": "dev-token-or-hmac-token",
   "client_id": "client-instance-1",
-  "client_version": "0.3.0",
+  "client_version": "0.3.1",
   "client_platform": "windows/amd64"
 }
 ```
@@ -295,7 +295,7 @@ GET /debug/pprof/
 PING：
 
 ```bash
-go run ./cmd/gaccel-probe -addr 127.0.0.1:443 -token dev-token -mode ping -client-id dev-client -client-version 0.3.0 -client-platform windows/amd64
+go run ./cmd/gaccel-probe -addr 127.0.0.1:443 -token dev-token -mode ping -client-id dev-client -client-version 0.3.1 -client-platform windows/amd64
 ```
 
 保活：

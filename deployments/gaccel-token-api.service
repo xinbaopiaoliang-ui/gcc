@@ -1,0 +1,19 @@
+[Unit]
+Description=gaccel token issuing API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=gaccel
+Group=gaccel
+ExecStart=/usr/local/bin/gaccel-token-api -config /etc/gaccel-node/token-api.yaml
+Restart=on-failure
+RestartSec=3s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/gaccel-node
+
+[Install]
+WantedBy=multi-user.target

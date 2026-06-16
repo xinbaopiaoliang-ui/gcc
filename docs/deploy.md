@@ -17,15 +17,16 @@ curl -fsSL https://raw.githubusercontent.com/xinbaopiaoliang-ui/gcc/main/scripts
 安装指定版本：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xinbaopiaoliang-ui/gcc/main/scripts/install.sh | sudo env VERSION=v0.3.0 sh
+curl -fsSL https://raw.githubusercontent.com/xinbaopiaoliang-ui/gcc/main/scripts/install.sh | sudo env VERSION=v0.3.1 sh
 ```
 
 安装脚本会：
 
 - 下载 GitHub Release 中匹配当前 Linux 架构的包。
 - 校验 `SHA256SUMS`。
-- 安装 `gaccel-node`、`gaccel-probe` 和 `gaccel-token` 到 `/usr/local/bin`。
+- 安装 `gaccel-node`、`gaccel-probe`、`gaccel-token` 和 `gaccel-token-api` 到 `/usr/local/bin`。
 - 初始化 `/etc/gaccel-node/config.yaml`。
+- 初始化 `/etc/gaccel-node/token-api.yaml`，但不会默认启动 token API。
 - 安装 systemd service。
 
 安装后需要准备 TLS 证书，并启动服务：
@@ -52,6 +53,7 @@ sudo systemctl status gaccel-node
 /etc/gaccel-node/config.yaml
 /etc/gaccel-node/cert.pem
 /etc/gaccel-node/key.pem
+/etc/gaccel-node/token-api.yaml
 ```
 
 安装后：
@@ -60,6 +62,14 @@ sudo systemctl status gaccel-node
 sudo systemctl daemon-reload
 sudo systemctl enable --now gaccel-node
 sudo systemctl status gaccel-node
+```
+
+Token API 可选启动：
+
+```bash
+sudo nano /etc/gaccel-node/token-api.yaml
+sudo systemctl start gaccel-token-api
+sudo systemctl status gaccel-token-api --no-pager
 ```
 
 ## Docker

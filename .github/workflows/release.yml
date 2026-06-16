@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag, for example v0.3.0"
+        description: "Release tag, for example v0.3.1"
         required: true
         type: string
 
@@ -66,15 +66,19 @@ jobs:
           go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o "dist/${PKG}/gaccel-node" ./cmd/server
           go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o "dist/${PKG}/gaccel-probe" ./cmd/gaccel-probe
           go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o "dist/${PKG}/gaccel-token" ./cmd/gaccel-token
+          go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o "dist/${PKG}/gaccel-token-api" ./cmd/gaccel-token-api
 
           cp config.example.yaml "dist/${PKG}/config.example.yaml"
+          cp token-api.example.yaml "dist/${PKG}/token-api.example.yaml"
           mkdir -p "dist/${PKG}/deployments" "dist/${PKG}/docs"
           cp deployments/gaccel-node.service "dist/${PKG}/deployments/gaccel-node.service"
+          cp deployments/gaccel-token-api.service "dist/${PKG}/deployments/gaccel-token-api.service"
           mkdir -p "dist/${PKG}/scripts"
           cp scripts/install.sh "dist/${PKG}/scripts/install.sh"
           chmod +x "dist/${PKG}/scripts/install.sh"
           cp docs/protocol.md "dist/${PKG}/docs/protocol.md"
           cp docs/deploy.md "dist/${PKG}/docs/deploy.md"
+          cp docs/token-api.md "dist/${PKG}/docs/token-api.md"
           cp README.md "dist/${PKG}/README.md"
 
           tar -C dist -czf "dist/${PKG}.tar.gz" "${PKG}"

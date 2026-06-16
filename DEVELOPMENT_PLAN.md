@@ -240,7 +240,19 @@ admin:
 - [x] 客户端联调协议文档补齐握手、保活、重连、token 过期策略。
 - [x] 回归测试覆盖 token 错误分类和 session metadata。
 
-### 阶段 11：节点运维与面板对接
+### 阶段 11：v0.3.1 Token 获取最小 API
+
+- [x] 独立提供 gaccel-token-api 服务，负责签发短期 HMAC token。
+- [x] token API 使用 API Key 鉴权，避免 hmac_secret 暴露给客户端。
+- [x] 支持 user_id、device_id、ttl、连接数、限速、TCP/UDP 权限参数。
+- [x] 对 ttl、连接数、限速做服务端上限限制。
+- [x] 提供 /health 与 POST /token 接口。
+- [x] 提供 token-api.example.yaml 与 systemd 示例。
+- [x] Release workflow 打包 gaccel-token-api。
+- [x] 安装脚本安装 gaccel-token-api 二进制与示例配置。
+- [x] 补充 token 获取接口文档与联调 curl 示例。
+
+### 阶段 12：节点运维与面板对接
 
 - [ ] 增加节点 ID、区域、标签等节点元数据配置。
 - [ ] 增加节点到面板的 heartbeat/report 客户端，只上报节点状态和版本，不做客户端订阅下发。

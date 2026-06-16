@@ -117,6 +117,9 @@ install -m 0755 "${PKG_DIR}/gaccel-probe" "${INSTALL_DIR}/gaccel-probe"
 if [ -f "${PKG_DIR}/gaccel-token" ]; then
   install -m 0755 "${PKG_DIR}/gaccel-token" "${INSTALL_DIR}/gaccel-token"
 fi
+if [ -f "${PKG_DIR}/gaccel-token-api" ]; then
+  install -m 0755 "${PKG_DIR}/gaccel-token-api" "${INSTALL_DIR}/gaccel-token-api"
+fi
 
 if [ ! -f "${CONFIG_DIR}/config.yaml" ]; then
   install -m 0644 "${PKG_DIR}/config.example.yaml" "${CONFIG_DIR}/config.yaml"
@@ -124,8 +127,16 @@ if [ ! -f "${CONFIG_DIR}/config.yaml" ]; then
   sed -i "s|key_file: \"./key.pem\"|key_file: \"${CONFIG_DIR}/key.pem\"|" "${CONFIG_DIR}/config.yaml"
 fi
 
+if [ -f "${PKG_DIR}/token-api.example.yaml" ] && [ ! -f "${CONFIG_DIR}/token-api.yaml" ]; then
+  install -m 0640 "${PKG_DIR}/token-api.example.yaml" "${CONFIG_DIR}/token-api.yaml"
+  chown "root:${GROUP_NAME}" "${CONFIG_DIR}/token-api.yaml"
+fi
+
 chown -R "${USER_NAME}:${GROUP_NAME}" "$STATE_DIR"
 install -m 0644 "${PKG_DIR}/deployments/gaccel-node.service" "$SERVICE_PATH"
+if [ -f "${PKG_DIR}/deployments/gaccel-token-api.service" ]; then
+  install -m 0644 "${PKG_DIR}/deployments/gaccel-token-api.service" "/etc/systemd/system/gaccel-token-api.service"
+fi
 
 systemctl daemon-reload
 systemctl enable gaccel-node
@@ -133,4 +144,5 @@ systemctl enable gaccel-node
 echo "Installed gaccel-node."
 echo "Edit ${CONFIG_DIR}/config.yaml and put TLS files at ${CONFIG_DIR}/cert.pem / ${CONFIG_DIR}/key.pem."
 echo "Then start it with: systemctl start gaccel-node"
+echo "Optional token API config: ${CONFIG_DIR}/token-api.yaml, start with: systemctl start gaccel-token-api"
 echo "Open UDP 443 in your firewall/security group."

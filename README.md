@@ -23,7 +23,7 @@ curl -fsSL https://raw.githubusercontent.com/xinbaopiaoliang-ui/gcc/main/scripts
 安装指定版本：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xinbaopiaoliang-ui/gcc/main/scripts/install.sh | sudo env VERSION=v0.3.0 sh
+curl -fsSL https://raw.githubusercontent.com/xinbaopiaoliang-ui/gcc/main/scripts/install.sh | sudo env VERSION=v0.3.1 sh
 ```
 
 安装后编辑：
@@ -81,13 +81,30 @@ http://127.0.0.1:9090/debug/pprof/
 `gaccel-probe` 仅用于协议验证，不是正式客户端。
 
 ```powershell
-go run ./cmd/gaccel-probe -addr 127.0.0.1:443 -token dev-token -mode ping -client-id dev-client -client-version 0.3.0 -client-platform windows/amd64
+go run ./cmd/gaccel-probe -addr 127.0.0.1:443 -token dev-token -mode ping -client-id dev-client -client-version 0.3.1 -client-platform windows/amd64
 ```
 
 保活联调：
 
 ```powershell
 go run ./cmd/gaccel-probe -addr 127.0.0.1:443 -token dev-token -mode keepalive -count 4 -interval 15s -timeout 70s -client-id dev-client
+```
+
+## Token 获取接口
+
+`gaccel-token-api` 可以由面板或后端调用，用服务端保存的 `hmac_secret` 签发短期 token。客户端只拿 token 连接节点，不持有 `hmac_secret`。
+
+```bash
+gaccel-token-api -config token-api.example.yaml
+```
+
+签发示例：
+
+```bash
+curl -sS http://127.0.0.1:8088/token \
+  -H "Authorization: Bearer your-token-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"dev","device_id":"win-test","ttl_seconds":3600}'
 ```
 
 ## HMAC Token 鉴权
@@ -123,12 +140,13 @@ curl -X POST http://127.0.0.1:5557/config/reload
 
 已完成项目骨架、配置加载、管理 health/status/sessions/metrics/config reload/pprof 接口、QUIC Listener、Control Stream、HELLO/AUTH/PING、UDP Datagram Relay、TCP Stream Relay、HMAC/JWT 短期 token、基础在线统计、用户级流量统计、flow 原因统计、TCP 关闭通知和测试模拟工具。
 
-当前优先级是 `v0.3.0` 客户端联调版：稳定协议元信息、错误码、客户端 metadata、保活观测和联调文档。监听地址、TLS 证书和 QUIC listener 级参数仍需要重启进程才能完全生效。
+当前优先级是 `v0.3.1` token 获取最小 API：提供后端/面板调用的短期 token 签发入口。监听地址、TLS 证书和 QUIC listener 级参数仍需要重启进程才能完全生效。
 
 ## 文档
 
 - [开发计划](./DEVELOPMENT_PLAN.md)
 - [协议草案](./docs/protocol.md)
+- [Token 获取接口](./docs/token-api.md)
 - [部署说明](./docs/deploy.md)
 
 ## 发布新版本
@@ -136,6 +154,6 @@ curl -X POST http://127.0.0.1:5557/config/reload
 推送 `v*` tag 会触发 GitHub Release 自动打包：
 
 ```bash
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.3.1
+git push origin v0.3.1
 ```

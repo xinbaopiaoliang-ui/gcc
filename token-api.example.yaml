@@ -1,0 +1,20 @@
+listen: "127.0.0.1:8088"
+
+# Use the same HMAC secret configured on gaccel-node.
+# It can also be supplied with GACCEL_HMAC_SECRET.
+hmac_secret: ""
+
+# Static API keys for backend/panel callers.
+# It can also be supplied with GACCEL_TOKEN_API_KEYS as a comma-separated list.
+api_keys:
+  - "change-me-api-key"
+
+token:
+  default_ttl: "15m"
+  max_ttl: "1h"
+  default_max_connections: 2
+  max_connections_limit: 8
+  default_rate_limit_mbps: 50
+  rate_limit_mbps_limit: 200
+  allow_tcp: true
+  allow_udp: true

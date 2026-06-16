@@ -183,3 +183,21 @@ gaccel-steam-demo_<version>_windows-amd64.zip
 ```
 
 该包用于本地页面测试 Steam Community 是否能通过 QUIC 节点访问，不会安装到 Linux 服务器，也不会修改 Windows 系统代理。
+
+## Windows CONNECT Demo
+
+GitHub Release 也附带 Windows HTTP CONNECT 联调包：
+
+```text
+gaccel-connect-demo_<version>_windows-amd64.zip
+```
+
+该包用于让浏览器或 Steam WebView 通过本机 HTTP CONNECT 入口访问 Steam 商店和论坛。demo 到节点之间仍然使用 QUIC `OPEN_TCP`，不是 SOCKS5、TUN 或 VPN。
+
+启动示例：
+
+```powershell
+gaccel-connect-demo.exe -listen 127.0.0.1:18080 -addr 195.245.242.9:5555 -token "你的 JWT token" -insecure=true
+```
+
+详细说明见 `docs/connect-demo.md`。

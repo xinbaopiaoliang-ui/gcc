@@ -294,6 +294,13 @@ admin:
 - [ ] 编写面板下发 `stage_upgrade` 的端到端测试脚本或示例。
 - [ ] 补充升级切换与人工回滚 Runbook。
 
+### 阶段 17：v0.4.0 客户端真实流量联调 Demo
+
+- [x] 提供 HTTP CONNECT 到 QUIC `OPEN_TCP` 的 Windows 联调 demo，用于浏览器/Steam WebView 访问 Steam 商店和论坛。
+- [x] demo 默认只监听本机地址，只允许 Steam 相关域名和 443 端口，避免成为开放代理。
+- [x] Release workflow 打包 `gaccel-connect-demo_<version>_windows-amd64.zip`。
+- [x] 补充 CONNECT demo 使用文档和 Rust 客户端参考说明。
+
 ## 已知风险与注意事项
 
 - QUIC Datagram 不保证可靠到达，适合 UDP 实时游戏包；控制消息和 TCP 必须走 Stream。

@@ -199,12 +199,38 @@ gaccel-steam-demo_<version>_windows-amd64.zip
 
 解压后双击 `gaccel-steam-demo.exe`，即可在本地页面填写节点、Token 和 Steam 社区目标进行 QUIC 原生转发测试。
 
+## Windows CONNECT Demo
+
+GitHub Release 会提供 Windows HTTP CONNECT 联调包：
+
+```text
+gaccel-connect-demo_<version>_windows-amd64.zip
+```
+
+它不是正式客户端，只是给客户端团队验证真实 Steam 商店/论坛 HTTPS 流量的参考工具。本机浏览器或 Steam WebView 通过 `127.0.0.1:18080` 发起 HTTP CONNECT，demo 再通过 QUIC `OPEN_TCP` 转发到节点。
+
+启动示例：
+
+```powershell
+gaccel-connect-demo.exe -listen 127.0.0.1:18080 -addr 195.245.242.9:5555 -token "你的 JWT token" -insecure=true
+```
+
+浏览器验证：
+
+```powershell
+Start-Process msedge.exe "--proxy-server=http://127.0.0.1:18080 https://store.steampowered.com/"
+Start-Process msedge.exe "--proxy-server=http://127.0.0.1:18080 https://steamcommunity.com/discussions/"
+```
+
+详细说明见 [HTTP CONNECT QUIC 联调 Demo](./docs/connect-demo.md)。
+
 ## 文档
 
 - [开发计划](./DEVELOPMENT_PLAN.md)
 - [协议草案](./docs/protocol.md)
 - [Token 获取接口](./docs/token-api.md)
 - [Rust 客户端联调指南](./docs/rust-client.md)
+- [HTTP CONNECT QUIC 联调 Demo](./docs/connect-demo.md)
 - [面板对接协议](./docs/panel.md)
 - [部署说明](./docs/deploy.md)
 

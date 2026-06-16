@@ -479,6 +479,7 @@ UDP 第二轮联调通过标准：
 ```text
 cmd/gaccel-probe        命令行协议探针
 cmd/gaccel-steam-demo   页面控制版联调 demo
+cmd/gaccel-connect-demo HTTP CONNECT 到 QUIC 的真实页面流量联调 demo
 docs/protocol.md        完整协议说明
 docs/token-api.md       token 获取接口
 ```

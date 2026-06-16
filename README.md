@@ -169,9 +169,17 @@ panel:
   command_interval: "30s"
   command_timeout: "10s"
   command_max_clock_skew: "2m"
+
+upgrade:
+  stage_dir: "/var/lib/gaccel-node/upgrades"
+  max_package_bytes: 209715200
+  timeout: "2m"
+  allow_http: false
 ```
 
-上报内容包含 `status`、节点版本、时间戳、`node` 元数据、QUIC 监听信息和指标快照。`panel.report_url` 为空时不会启动上报。`panel.command_url` 可选开启签名运维命令拉取，当前支持 `noop`、`config_reload` 和 `apply_config`。
+上报内容包含 `status`、节点版本、时间戳、`node` 元数据、QUIC 监听信息和指标快照。`panel.report_url` 为空时不会启动上报。`panel.command_url` 可选开启签名运维命令拉取，当前支持 `noop`、`config_reload`、`apply_config` 和 `stage_upgrade`。
+
+`stage_upgrade` 只下载并校验升级包，把文件暂存在 `upgrade.stage_dir`，不会直接替换正在运行的二进制，也不会自动重启节点。
 
 ## 当前状态
 

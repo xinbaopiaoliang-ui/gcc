@@ -18,6 +18,7 @@ type Config struct {
 	Limits   LimitsConfig   `yaml:"limits"`
 	Security SecurityConfig `yaml:"security"`
 	Panel    PanelConfig    `yaml:"panel"`
+	Upgrade  UpgradeConfig  `yaml:"upgrade"`
 	Admin    AdminConfig    `yaml:"admin"`
 }
 
@@ -74,6 +75,13 @@ type PanelConfig struct {
 	CommandInterval     time.Duration `yaml:"command_interval"`
 	CommandTimeout      time.Duration `yaml:"command_timeout"`
 	CommandMaxClockSkew time.Duration `yaml:"command_max_clock_skew"`
+}
+
+type UpgradeConfig struct {
+	StageDir        string        `yaml:"stage_dir"`
+	MaxPackageBytes int64         `yaml:"max_package_bytes"`
+	Timeout         time.Duration `yaml:"timeout"`
+	AllowHTTP       bool          `yaml:"allow_http"`
 }
 
 type AdminConfig struct {
@@ -136,6 +144,11 @@ func Default() *Config {
 			CommandInterval:     30 * time.Second,
 			CommandTimeout:      10 * time.Second,
 			CommandMaxClockSkew: 2 * time.Minute,
+		},
+		Upgrade: UpgradeConfig{
+			StageDir:        "/var/lib/gaccel-node/upgrades",
+			MaxPackageBytes: 200 * 1024 * 1024,
+			Timeout:         2 * time.Minute,
 		},
 		Admin: AdminConfig{
 			Listen: "127.0.0.1:9090",
@@ -206,6 +219,16 @@ func applyDefaults(cfg *Config) {
 	if cfg.Panel.CommandMaxClockSkew == 0 {
 		cfg.Panel.CommandMaxClockSkew = def.Panel.CommandMaxClockSkew
 	}
+	cfg.Upgrade.StageDir = strings.TrimSpace(cfg.Upgrade.StageDir)
+	if cfg.Upgrade.StageDir == "" {
+		cfg.Upgrade.StageDir = def.Upgrade.StageDir
+	}
+	if cfg.Upgrade.MaxPackageBytes == 0 {
+		cfg.Upgrade.MaxPackageBytes = def.Upgrade.MaxPackageBytes
+	}
+	if cfg.Upgrade.Timeout == 0 {
+		cfg.Upgrade.Timeout = def.Upgrade.Timeout
+	}
 	normalizeNode(&cfg.Node)
 }
 
@@ -239,6 +262,22 @@ func validate(cfg *Config) error {
 	}
 	if err := validatePanel(cfg.Panel); err != nil {
 		return err
+	}
+	if err := validateUpgrade(cfg.Upgrade); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateUpgrade(upgrade UpgradeConfig) error {
+	if upgrade.StageDir == "" {
+		return errors.New("upgrade.stage_dir is required")
+	}
+	if upgrade.MaxPackageBytes < 0 {
+		return errors.New("upgrade.max_package_bytes must be >= 0")
+	}
+	if upgrade.Timeout < 0 {
+		return errors.New("upgrade.timeout must be >= 0")
 	}
 	return nil
 }

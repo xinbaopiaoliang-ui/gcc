@@ -77,13 +77,21 @@ panel:
   command_interval: "30s"
   command_timeout: "10s"
   command_max_clock_skew: "2m"
+
+upgrade:
+  stage_dir: "/var/lib/gaccel-node/upgrades"
+  max_package_bytes: 209715200
+  timeout: "2m"
+  allow_http: false
 ```
 
 该功能只做 heartbeat/report：节点定时 POST 自身状态、版本、节点元数据和指标快照，不接收面板配置下发，也不要求把管理 API 暴露到公网。
 
 建议面板侧校验 `Authorization: Bearer <api_key>`，并记录节点 `node.id`、`version`、`timestamp`、`metrics.active_quic_connections` 等字段。
 
-如需下发运维命令，配置 `command_url` 和 `command_secret`。节点会主动拉取并校验 HMAC 签名，当前支持 `noop`、`config_reload` 和 `apply_config`，详见 `docs/panel.md`。
+如需下发运维命令，配置 `command_url` 和 `command_secret`。节点会主动拉取并校验 HMAC 签名，当前支持 `noop`、`config_reload`、`apply_config` 和 `stage_upgrade`，详见 `docs/panel.md`。
+
+`stage_upgrade` 只负责安全暂存升级包：下载、校验 SHA256、写入 manifest。它不会替换 `/usr/local/bin/gaccel-node`，也不会自动重启服务。
 
 ## systemd
 

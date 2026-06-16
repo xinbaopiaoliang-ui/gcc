@@ -62,5 +62,11 @@ panel:
   command_timeout: "10s"
   command_max_clock_skew: "2m"
 
+upgrade:
+  stage_dir: "/var/lib/gaccel-node/upgrades"
+  max_package_bytes: 209715200
+  timeout: "2m"
+  allow_http: false
+
 admin:
   listen: "127.0.0.1:9090"

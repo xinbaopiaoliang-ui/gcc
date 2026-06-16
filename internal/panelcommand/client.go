@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"gaccel-node/internal/config"
+	"gaccel-node/internal/upgrade"
 )
 
 const (
@@ -29,6 +30,7 @@ const (
 	CommandNoop         = "noop"
 	CommandConfigReload = "config_reload"
 	CommandApplyConfig  = "apply_config"
+	CommandStageUpgrade = "stage_upgrade"
 )
 
 type Client struct {
@@ -39,10 +41,15 @@ type Client struct {
 	nonces    *nonceCache
 	now       func() time.Time
 	collector ResultCollector
+	upgrader  UpgradeStager
 }
 
 type ResultCollector interface {
 	Record(CommandResult)
+}
+
+type UpgradeStager interface {
+	Stage(context.Context, config.UpgradeConfig, upgrade.Request) (*upgrade.Result, error)
 }
 
 type Envelope struct {
@@ -80,6 +87,7 @@ func New(cfg *config.Manager, logger *slog.Logger, version string) *Client {
 		nonces:    newNonceCache(),
 		now:       time.Now,
 		collector: noopCollector{},
+		upgrader:  upgrade.NewStager(),
 	}
 }
 
@@ -148,7 +156,7 @@ func (c *Client) poll(parent context.Context, cfg *config.Config) error {
 		return err
 	}
 	for _, command := range envelope.Commands {
-		result := c.execute(cfg, command)
+		result := c.execute(ctx, cfg, command)
 		c.collector.Record(result)
 		if result.OK {
 			c.logger.Info("panel command executed", "id", result.ID, "type", result.Type)
@@ -201,7 +209,7 @@ func (c *Client) verifyResponse(cfg *config.Config, header http.Header, body []b
 	return nil
 }
 
-func (c *Client) execute(cfg *config.Config, command Command) CommandResult {
+func (c *Client) execute(ctx context.Context, cfg *config.Config, command Command) CommandResult {
 	now := c.now().UTC()
 	result := CommandResult{
 		ID:         strings.TrimSpace(command.ID),
@@ -255,6 +263,26 @@ func (c *Client) execute(cfg *config.Config, command Command) CommandResult {
 		result.Details = map[string]string{
 			"sha256":      applied.SHA256,
 			"backup_path": applied.BackupPath,
+		}
+	case CommandStageUpgrade:
+		var payload upgrade.Request
+		if err := json.Unmarshal(command.Payload, &payload); err != nil {
+			result.Error = "invalid stage_upgrade payload: " + err.Error()
+			return result
+		}
+		staged, err := c.upgrader.Stage(ctx, cfg.Upgrade, payload)
+		if err != nil {
+			result.Error = err.Error()
+			return result
+		}
+		result.OK = true
+		result.Details = map[string]any{
+			"version":       staged.Version,
+			"sha256":        staged.SHA256,
+			"size_bytes":    staged.SizeBytes,
+			"file_path":     staged.FilePath,
+			"manifest_path": staged.ManifestPath,
+			"staged_at":     staged.StagedAt,
 		}
 	default:
 		result.Error = "unsupported command type"

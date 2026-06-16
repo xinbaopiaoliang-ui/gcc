@@ -1,6 +1,7 @@
 package panelcommand
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"gaccel-node/internal/config"
+	"gaccel-node/internal/upgrade"
 )
 
 func TestSignBodyAndSignatureEqual(t *testing.T) {
@@ -83,7 +85,7 @@ func TestExecuteApplyConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result := client.execute(manager.Current(), Command{
+	result := client.execute(context.Background(), manager.Current(), Command{
 		ID:        "cmd-apply-config-1",
 		Type:      CommandApplyConfig,
 		IssuedAt:  client.now(),
@@ -98,8 +100,55 @@ func TestExecuteApplyConfig(t *testing.T) {
 	}
 }
 
+func TestExecuteStageUpgrade(t *testing.T) {
+	cfg := config.Default()
+	cfg.Upgrade.StageDir = t.TempDir()
+	now := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
+	client := New(nil, nilLogger(), "test")
+	client.now = func() time.Time { return now }
+	client.upgrader = fakeUpgradeStager{
+		result: &upgrade.Result{
+			Version:      "0.3.3",
+			URL:          "https://example.com/pkg.tar.gz",
+			FilePath:     "/stage/pkg.tar.gz",
+			ManifestPath: "/stage/manifest.json",
+			SHA256:       "abc",
+			SizeBytes:    123,
+			StagedAt:     now,
+		},
+	}
+
+	payload, err := json.Marshal(upgrade.Request{
+		Version: "0.3.3",
+		URL:     "https://example.com/pkg.tar.gz",
+		SHA256:  "abc",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := client.execute(context.Background(), cfg, Command{
+		ID:        "cmd-stage-upgrade-1",
+		Type:      CommandStageUpgrade,
+		IssuedAt:  now,
+		ExpiresAt: now.Add(time.Minute),
+		Payload:   payload,
+	})
+	if !result.OK {
+		t.Fatalf("stage_upgrade failed: %s", result.Error)
+	}
+}
+
 func nilLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+type fakeUpgradeStager struct {
+	result *upgrade.Result
+	err    error
+}
+
+func (f fakeUpgradeStager) Stage(context.Context, config.UpgradeConfig, upgrade.Request) (*upgrade.Result, error) {
+	return f.result, f.err
 }
 
 func panelCommandTestConfig(nodeID string) []byte {

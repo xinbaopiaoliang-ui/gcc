@@ -7,7 +7,7 @@
 - 节点主动访问面板，管理 API 不暴露公网。
 - heartbeat/report 只上报状态，不做下发。
 - 运维命令由节点主动拉取，面板响应必须带 HMAC 签名。
-- 第一版命令支持 `noop`、`config_reload` 和 `apply_config`。
+- 第一版命令支持 `noop`、`config_reload`、`apply_config` 和 `stage_upgrade`。
 
 ## 配置
 
@@ -32,6 +32,12 @@ panel:
   command_interval: "30s"
   command_timeout: "10s"
   command_max_clock_skew: "2m"
+
+upgrade:
+  stage_dir: "/var/lib/gaccel-node/upgrades"
+  max_package_bytes: 209715200
+  timeout: "2m"
+  allow_http: false
 ```
 
 `report_url` 和 `command_url` 都是可选项。为空时对应能力不会启动。
@@ -245,6 +251,36 @@ signature = "v1=" + hex(hmac_sha256(command_secret, message))
 - 配置包不应包含面板命令密钥的明文回传日志。
 - 面板侧需要保存每次配置包的 SHA256、操作者、发布时间和目标节点。
 
+### stage_upgrade
+
+下发节点二进制升级包的暂存任务。节点会下载升级包、校验 SHA256、写入 `upgrade.stage_dir/<version>/`，并生成 `manifest.json`。
+
+该命令不会直接替换 `/usr/local/bin/gaccel-node`，也不会自动重启服务。前期流程建议由面板先完成暂存，再由人工或后续受控安装器执行切换版本，避免远程命令直接打断正在运行的节点。
+
+```json
+{
+  "id": "cmd-stage-upgrade-1",
+  "type": "stage_upgrade",
+  "issued_at": "2026-06-16T12:00:00Z",
+  "expires_at": "2026-06-16T12:02:00Z",
+  "payload": {
+    "version": "0.3.3",
+    "url": "https://github.com/xinbaopiaoliang-ui/gcc/releases/download/v0.3.3/gaccel-node_0.3.3_linux-amd64.tar.gz",
+    "sha256": "7f0d...64hex",
+    "file": "gaccel-node_0.3.3_linux-amd64.tar.gz"
+  }
+}
+```
+
+字段说明：
+
+- `version` 是暂存目录名，只允许字母、数字、点、下划线、短横线和加号。
+- `url` 默认必须是 HTTPS；只有显式配置 `upgrade.allow_http: true` 时才允许 HTTP。
+- `sha256` 必须按升级包原始字节计算，支持可选的 `sha256:` 前缀。
+- `file` 可选；为空时节点会使用 URL path 的 basename。文件名只允许字母、数字、点、下划线和短横线。
+
+成功结果会包含 `version`、`sha256`、`size_bytes`、`file_path`、`manifest_path` 和 `staged_at`。面板可以根据节点上报的 `version` 判断是否需要下发 `stage_upgrade`。
+
 ## 安全建议
 
 - `panel.api_key` 和 `panel.command_secret` 必须是不同随机值。
@@ -252,4 +288,5 @@ signature = "v1=" + hex(hmac_sha256(command_secret, message))
 - 面板命令接口必须走 HTTPS。
 - 命令必须设置较短 `expires_at`。
 - 面板侧需要记录命令 ID、操作者、目标节点、签名时间和执行结果。
-- 配置包必须带 SHA256；升级包下发后续还需要包级 SHA256 或签名校验。
+- 配置包和升级包都必须带 SHA256；升级包默认只允许 HTTPS 下载。
+- `stage_upgrade` 只负责暂存和校验，不负责替换二进制或重启节点。生产环境切换版本前应再次核对 manifest 和发布来源。

@@ -7,7 +7,15 @@ func TestSessionSnapshotIncludesPrincipalLimits(t *testing.T) {
 	session := registry.Register("1", "127.0.0.1:12345")
 	session.SetClientInfo("client-1", "0.3.0", "windows/amd64", 1)
 	session.MarkPing()
-	session.SetPrincipal("user-1", "device-1", 2, 50, true, false)
+	session.SetPrincipal("user-1", "device-1", 2, 50, true, false, []string{"steam"}, []string{"steam-web-v1"}, "r1")
+	flow := session.AddFlow(1, "tcp", "store.steampowered.com:443", FlowMetadata{
+		GameID:               "steam",
+		PolicyID:             "steam-web-v1",
+		RuleID:               "steam-store-tcp-443",
+		ProcessName:          "steam.exe",
+		ClientConfigRevision: "r1",
+	})
+	flow.AddClientToTarget(10)
 
 	snapshots := registry.Snapshot()
 	if len(snapshots) != 1 {
@@ -46,5 +54,20 @@ func TestSessionSnapshotIncludesPrincipalLimits(t *testing.T) {
 	}
 	if snapshot.AllowUDP {
 		t.Fatal("AllowUDP = true, want false")
+	}
+	if len(snapshot.GameIDs) != 1 || snapshot.GameIDs[0] != "steam" {
+		t.Fatalf("GameIDs = %#v, want [steam]", snapshot.GameIDs)
+	}
+	if len(snapshot.PolicyIDs) != 1 || snapshot.PolicyIDs[0] != "steam-web-v1" {
+		t.Fatalf("PolicyIDs = %#v, want [steam-web-v1]", snapshot.PolicyIDs)
+	}
+	if snapshot.ConfigRevision != "r1" {
+		t.Fatalf("ConfigRevision = %q, want r1", snapshot.ConfigRevision)
+	}
+	if len(snapshot.Flows) != 1 {
+		t.Fatalf("len(Flows) = %d, want 1", len(snapshot.Flows))
+	}
+	if snapshot.Flows[0].GameID != "steam" || snapshot.Flows[0].PolicyID != "steam-web-v1" || snapshot.Flows[0].RuleID != "steam-store-tcp-443" {
+		t.Fatalf("flow metadata = %#v", snapshot.Flows[0])
 	}
 }

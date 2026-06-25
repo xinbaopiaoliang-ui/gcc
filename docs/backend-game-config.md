@@ -33,6 +33,7 @@
 - 客户端不能把任意规则直接下发给节点。
 - 节点只信任业务后台同步的节点策略快照。
 - 客户端发来的 `process_name` 只用于日志和排查，不能作为唯一安全依据。
+- 业务后台、控制面板和节点之间统一用 `node_id` 识别节点；节点 IP/端口只作为客户端连接入口，可以变化。
 
 ## 总体链路
 
@@ -41,6 +42,7 @@
   -> 生成客户端配置
   -> 生成节点策略配置
   -> 签发短期 token
+  -> 通过控制面板按 node_id 同步节点和 desired_policy_revision
 
 客户端
   -> 按进程/域名/IP/端口/协议命中游戏规则
@@ -52,6 +54,24 @@
   -> 校验本地节点策略
   -> TCP Stream Relay / UDP Datagram Relay
 ```
+
+## 控制面板同步字段
+
+业务后台同步节点到控制面板时，至少需要给：
+
+| 字段 | 必填 | 说明 |
+| --- | --- | --- |
+| `node_id` | 是 | 节点唯一 ID，作为业务后台、控制面板、节点配置三方主键。 |
+| `name` | 是 | 节点展示名。 |
+| `endpoint_host` | 是 | 客户端连接 QUIC 的公网 IP 或域名。 |
+| `endpoint_port` | 是 | 客户端连接 QUIC 端口。 |
+| `alpn` | 是 | 默认 `gaccel/1`。 |
+| `admin_host` / `admin_port` | 建议 | 控制面板接入自检使用。远程节点若填 `127.0.0.1`，面板无法跨服务器直接探测。 |
+| `allow_tcp` / `allow_udp` | 是 | 节点是否允许 TCP/UDP 转发。全平台游戏两者都建议支持。 |
+| `desired_version` | 可选 | 期望节点版本，用于一键更新和漂移提示。 |
+| `desired_policy_revision` | 可选 | 期望策略版本，用于策略同步闭环。 |
+
+业务后台保存游戏和规则后，应生成 `route_policies`，调用控制面板的策略校验接口，通过后保存策略，再把对应 `revision` 设置为目标节点的 `desired_policy_revision`。
 
 ## 客户端传给节点的字段
 
@@ -115,7 +135,7 @@
 
 ## token 建议 Claims
 
-后续 token 建议增加游戏和策略授权字段：
+token 应携带游戏和策略授权字段：
 
 ```json
 {
@@ -508,7 +528,7 @@ CREATE TABLE accel_config_revisions (
 }
 ```
 
-节点后续配置可落到 `config.yaml`：
+节点配置可落到 `config.yaml`：
 
 ```yaml
 route_policies:
@@ -649,7 +669,7 @@ Content-Type: application/json
 
 ### 面板同步节点策略
 
-节点策略可以通过后续的 `apply_config` 或独立 `apply_policy` 运维命令同步。第一版建议先合并到节点配置包里：
+节点策略可以通过完整 `apply_config` 或独立 `apply_policy` 运维命令同步。策略频繁变更时，建议优先使用 `apply_policy`，只替换节点配置里的 `route_policies` 块：
 
 ```json
 {
@@ -662,17 +682,18 @@ Content-Type: application/json
 }
 ```
 
-## 节点需要实现的后续能力
+## 节点已实现能力
 
-当前节点已经支持通用 TCP/UDP 转发，但还没有完整实现 `policy_id` 级校验。下一步节点侧需要增加：
+当前节点已经支持通用 TCP/UDP 转发和 `policy_id` 级强校验：
 
 1. `protocol.Message.Metadata` 解析为结构化 flow metadata。
-2. token claims 增加 `game_ids`、`policy_ids`、`config_revision`。
-3. 节点配置增加 `route_policies`。
-4. `OPEN_TCP` / `OPEN_UDP` 创建 flow 前执行策略校验。
-5. `/status` 输出 `route_policies.revision`。
+2. token claims 支持 `game_ids`、`policy_ids`、`config_revision`。
+3. 节点配置支持 `route_policies`。
+4. `OPEN_TCP` / `OPEN_UDP` 创建 flow 前执行 token、metadata、policy、rule、目标和端口校验。
+5. `/status` 输出 `route_policies.revision` 与 `policy_count`。
 6. `/sessions` 输出每个 flow 的 `game_id`、`policy_id`、`rule_id`。
 7. flow metrics 按 `game_id`、`policy_id` 聚合。
+8. 面板命令支持 `apply_policy` 独立热更新策略块。
 
 ## 最小落地顺序
 
@@ -681,8 +702,8 @@ Content-Type: application/json
 1. 业务后台先落 MySQL 表。
 2. 后台生成客户端配置 JSON。
 3. 后台生成节点策略 JSON。
-4. token API 增加 `policy_ids`。
-5. 节点支持 `route_policies` 校验。
+4. token API 按用户授权签发 `game_ids` / `policy_ids` / `config_revision`。
+5. 面板用 `apply_policy` 同步节点 `route_policies`。
 6. 客户端接入进程级分流。
 7. 联调 Steam TCP。
 8. 联调一个 UDP 游戏。

@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"net/url"
 	"os"
 	"strings"
@@ -12,14 +13,15 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig   `yaml:"server"`
-	Node     NodeConfig     `yaml:"node"`
-	Auth     AuthConfig     `yaml:"auth"`
-	Limits   LimitsConfig   `yaml:"limits"`
-	Security SecurityConfig `yaml:"security"`
-	Panel    PanelConfig    `yaml:"panel"`
-	Upgrade  UpgradeConfig  `yaml:"upgrade"`
-	Admin    AdminConfig    `yaml:"admin"`
+	Server        ServerConfig        `yaml:"server"`
+	Node          NodeConfig          `yaml:"node"`
+	Auth          AuthConfig          `yaml:"auth"`
+	Limits        LimitsConfig        `yaml:"limits"`
+	Security      SecurityConfig      `yaml:"security"`
+	RoutePolicies RoutePoliciesConfig `yaml:"route_policies" json:"route_policies"`
+	Panel         PanelConfig         `yaml:"panel"`
+	Upgrade       UpgradeConfig       `yaml:"upgrade"`
+	Admin         AdminConfig         `yaml:"admin"`
 }
 
 type ServerConfig struct {
@@ -44,13 +46,15 @@ type AuthConfig struct {
 }
 
 type LimitsConfig struct {
-	MaxQUICConnections int           `yaml:"max_quic_connections"`
-	MaxUserConnections int           `yaml:"max_user_connections"`
-	MaxFlowsPerConn    int           `yaml:"max_flows_per_conn"`
-	QUICIdleTimeout    time.Duration `yaml:"quic_idle_timeout"`
-	UDPIdleTimeout     time.Duration `yaml:"udp_idle_timeout"`
-	TCPIdleTimeout     time.Duration `yaml:"tcp_idle_timeout"`
-	UserRateLimitMbps  int           `yaml:"user_rate_limit_mbps"`
+	MaxQUICConnections       int           `yaml:"max_quic_connections"`
+	MaxUserConnections       int           `yaml:"max_user_connections"`
+	MaxFlowsPerConn          int           `yaml:"max_flows_per_conn"`
+	HeartbeatInterval        time.Duration `yaml:"heartbeat_interval"`
+	SessionDisconnectTimeout time.Duration `yaml:"session_disconnect_timeout"`
+	QUICIdleTimeout          time.Duration `yaml:"quic_idle_timeout"`
+	UDPIdleTimeout           time.Duration `yaml:"udp_idle_timeout"`
+	TCPIdleTimeout           time.Duration `yaml:"tcp_idle_timeout"`
+	UserRateLimitMbps        int           `yaml:"user_rate_limit_mbps"`
 }
 
 type SecurityConfig struct {
@@ -63,6 +67,32 @@ type SecurityConfig struct {
 	AllowedTCPPorts   []string `yaml:"allowed_tcp_ports"`
 	BlockedTCPPorts   []string `yaml:"blocked_tcp_ports"`
 	BlockedUDPPorts   []string `yaml:"blocked_udp_ports"`
+}
+
+type RoutePoliciesConfig struct {
+	Revision string              `yaml:"revision" json:"revision"`
+	Policies []RoutePolicyConfig `yaml:"policies" json:"policies"`
+}
+
+type RoutePolicyConfig struct {
+	PolicyID string                  `yaml:"policy_id" json:"policy_id"`
+	GameID   string                  `yaml:"game_id" json:"game_id"`
+	Name     string                  `yaml:"name,omitempty" json:"name,omitempty"`
+	AllowTCP *bool                   `yaml:"allow_tcp,omitempty" json:"allow_tcp,omitempty"`
+	AllowUDP *bool                   `yaml:"allow_udp,omitempty" json:"allow_udp,omitempty"`
+	Rules    []RoutePolicyRuleConfig `yaml:"rules" json:"rules"`
+}
+
+type RoutePolicyRuleConfig struct {
+	RuleID      string `yaml:"rule_id" json:"rule_id"`
+	Network     string `yaml:"network" json:"network"`
+	TargetType  string `yaml:"target_type" json:"target_type"`
+	TargetValue string `yaml:"target_value" json:"target_value"`
+	PortStart   int    `yaml:"port_start" json:"port_start"`
+	PortEnd     int    `yaml:"port_end" json:"port_end"`
+	Action      string `yaml:"action" json:"action"`
+	Priority    int    `yaml:"priority,omitempty" json:"priority,omitempty"`
+	Enabled     *bool  `yaml:"enabled,omitempty" json:"enabled,omitempty"`
 }
 
 type PanelConfig struct {
@@ -120,13 +150,15 @@ func Default() *Config {
 			TokenLeeway: 30 * time.Second,
 		},
 		Limits: LimitsConfig{
-			MaxQUICConnections: 50000,
-			MaxUserConnections: 8,
-			MaxFlowsPerConn:    256,
-			QUICIdleTimeout:    60 * time.Second,
-			UDPIdleTimeout:     60 * time.Second,
-			TCPIdleTimeout:     10 * time.Minute,
-			UserRateLimitMbps:  100,
+			MaxQUICConnections:       50000,
+			MaxUserConnections:       8,
+			MaxFlowsPerConn:          256,
+			HeartbeatInterval:        15 * time.Second,
+			SessionDisconnectTimeout: 45 * time.Second,
+			QUICIdleTimeout:          60 * time.Second,
+			UDPIdleTimeout:           60 * time.Second,
+			TCPIdleTimeout:           10 * time.Minute,
+			UserRateLimitMbps:        100,
 		},
 		Security: SecurityConfig{
 			DenyPrivateIP:     true,
@@ -181,6 +213,12 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Limits.MaxFlowsPerConn == 0 {
 		cfg.Limits.MaxFlowsPerConn = def.Limits.MaxFlowsPerConn
+	}
+	if cfg.Limits.HeartbeatInterval == 0 {
+		cfg.Limits.HeartbeatInterval = def.Limits.HeartbeatInterval
+	}
+	if cfg.Limits.SessionDisconnectTimeout == 0 {
+		cfg.Limits.SessionDisconnectTimeout = def.Limits.SessionDisconnectTimeout
 	}
 	if cfg.Limits.QUICIdleTimeout == 0 {
 		cfg.Limits.QUICIdleTimeout = def.Limits.QUICIdleTimeout
@@ -266,6 +304,9 @@ func validate(cfg *Config) error {
 	if err := validateUpgrade(cfg.Upgrade); err != nil {
 		return err
 	}
+	if err := validateRoutePolicies(cfg.RoutePolicies); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -347,6 +388,82 @@ func normalizeNode(node *NodeConfig) {
 		}
 	}
 	node.Labels = labels
+}
+
+func validateRoutePolicies(routePolicies RoutePoliciesConfig) error {
+	policies := make(map[string]struct{}, len(routePolicies.Policies))
+	rules := make(map[string]struct{})
+	for i, policy := range routePolicies.Policies {
+		policyID := strings.TrimSpace(policy.PolicyID)
+		gameID := strings.TrimSpace(policy.GameID)
+		if policyID == "" {
+			return fmt.Errorf("route_policies.policies[%d].policy_id is required", i)
+		}
+		if gameID == "" {
+			return fmt.Errorf("route_policies.policies[%d].game_id is required", i)
+		}
+		if _, ok := policies[policyID]; ok {
+			return fmt.Errorf("route_policies duplicate policy_id %q", policyID)
+		}
+		policies[policyID] = struct{}{}
+		for j, rule := range policy.Rules {
+			if err := validateRoutePolicyRule(policyID, j, rule); err != nil {
+				return err
+			}
+			ruleID := strings.TrimSpace(rule.RuleID)
+			if _, ok := rules[ruleID]; ok {
+				return fmt.Errorf("route_policies duplicate rule_id %q", ruleID)
+			}
+			rules[ruleID] = struct{}{}
+		}
+	}
+	return nil
+}
+
+func validateRoutePolicyRule(policyID string, index int, rule RoutePolicyRuleConfig) error {
+	prefix := fmt.Sprintf("route_policies policy %q rule[%d]", policyID, index)
+	if strings.TrimSpace(rule.RuleID) == "" {
+		return fmt.Errorf("%s rule_id is required", prefix)
+	}
+	switch strings.ToLower(strings.TrimSpace(rule.Network)) {
+	case "tcp", "udp", "any":
+	default:
+		return fmt.Errorf("%s network must be tcp, udp, or any", prefix)
+	}
+	switch strings.ToLower(strings.TrimSpace(rule.TargetType)) {
+	case "domain", "domain_suffix", "ip", "cidr", "any":
+	default:
+		return fmt.Errorf("%s target_type must be domain, domain_suffix, ip, cidr, or any", prefix)
+	}
+	targetValue := strings.TrimSpace(rule.TargetValue)
+	if targetValue == "" && strings.ToLower(strings.TrimSpace(rule.TargetType)) != "any" {
+		return fmt.Errorf("%s target_value is required", prefix)
+	}
+	if strings.ToLower(strings.TrimSpace(rule.TargetType)) == "cidr" {
+		if _, err := netip.ParsePrefix(targetValue); err != nil {
+			return fmt.Errorf("%s target_value must be a CIDR prefix: %w", prefix, err)
+		}
+	}
+	if strings.ToLower(strings.TrimSpace(rule.TargetType)) == "ip" {
+		if _, err := netip.ParseAddr(targetValue); err != nil {
+			return fmt.Errorf("%s target_value must be an IP address: %w", prefix, err)
+		}
+	}
+	if rule.PortStart < 1 || rule.PortStart > 65535 {
+		return fmt.Errorf("%s port_start must be between 1 and 65535", prefix)
+	}
+	if rule.PortEnd < 1 || rule.PortEnd > 65535 {
+		return fmt.Errorf("%s port_end must be between 1 and 65535", prefix)
+	}
+	if rule.PortEnd < rule.PortStart {
+		return fmt.Errorf("%s port_end must be >= port_start", prefix)
+	}
+	switch strings.ToLower(strings.TrimSpace(rule.Action)) {
+	case "", "quic_relay", "block", "direct":
+	default:
+		return fmt.Errorf("%s action must be quic_relay, block, or direct", prefix)
+	}
+	return nil
 }
 
 func validateNode(node NodeConfig) error {

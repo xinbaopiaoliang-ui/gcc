@@ -1,6 +1,7 @@
 # Token 获取接口
 
 `gaccel-token-api` 是一个最小 token 签发服务，给面板或后端使用。它只负责把服务端保存的 `hmac_secret` 签成短期 token；客户端拿到 token 后仍然直接连接节点的 QUIC 端口。
+生产环境建议由业务后台为每个节点生成并保存 `hmac_secret`，同时同步一份加密副本到控制面板用于部署。客户端永远只接收短期 JWT token。
 
 不要把 `hmac_secret` 放进客户端。生产环境也不要把 `gaccel-token-api` 直接暴露给未登录用户。
 
@@ -80,7 +81,10 @@ curl -sS http://127.0.0.1:8088/token \
     "max_connections": 2,
     "rate_limit_mbps": 50,
     "allow_tcp": true,
-    "allow_udp": true
+    "allow_udp": true,
+    "game_ids": ["steam", "example_game"],
+    "policy_ids": ["steam-web-v1", "example-game-realtime-v1"],
+    "config_revision": "20260616.1"
   }'
 ```
 
@@ -111,6 +115,9 @@ go run ./cmd/gaccel-probe -addr 195.245.242.9:5555 -token "eyJ..." -mode keepali
 - `max_connections`：可选，不填使用默认值，不能超过 `token.max_connections_limit`。
 - `rate_limit_mbps`：可选，不填使用默认值，不能超过 `token.rate_limit_mbps_limit`。
 - `allow_tcp` / `allow_udp`：可选，不能突破服务端策略。例如配置里 `allow_tcp: false` 时，请求不能改成 true。
+- `game_ids`：可选，允许该 token 打开的游戏 ID 列表；节点启用 `route_policies` 时会校验。
+- `policy_ids`：可选，允许该 token 使用的策略 ID 列表；节点启用 `route_policies` 时会校验。
+- `config_revision`：可选，客户端配置版本；如果写入 token，flow metadata 的 `client_config_revision` 必须一致。
 
 ## 安全边界
 

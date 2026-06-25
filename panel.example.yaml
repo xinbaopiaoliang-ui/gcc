@@ -1,0 +1,43 @@
+listen: "127.0.0.1:8090"
+public_base_url: "http://127.0.0.1:8090"
+
+database:
+  driver: "mysql"
+  # It can also be supplied with GACCEL_PANEL_DATABASE_DSN.
+  # Compatible with MySQL 8.0.45 on the Baota panel server.
+  dsn: "gaccel_panel:change-me@tcp(127.0.0.1:3306)/gaccel_panel?parseTime=true&charset=utf8mb4&collation=utf8mb4_unicode_ci&loc=Local"
+
+security:
+  # 32+ random bytes. It can also be supplied with GACCEL_PANEL_MASTER_KEY.
+  master_key: "change-me-panel-master-key"
+  # It can also be supplied with GACCEL_PANEL_BACKEND_API_KEYS as a comma-separated list.
+  backend_api_keys:
+    - "change-me-backend-api-key"
+
+session:
+  cookie_name: "gaccel_panel_session"
+  # 32+ random bytes. It can also be supplied with GACCEL_PANEL_SESSION_SECRET.
+  secret: "change-me-panel-session-secret"
+  ttl: "12h"
+
+node_command:
+  # Must match the node config panel.command_secret for signed command responses.
+  # It can also be supplied with GACCEL_PANEL_COMMAND_SECRET.
+  secret: "change-me-panel-command-secret"
+  max_clock_skew: "2m"
+  nonce_ttl: "2m"
+  default_expires_in: "2m"
+
+deploy:
+  default_node_version: "latest"
+  ssh_timeout: "15s"
+  command_timeout: "2m"
+
+cors:
+  # Browser origins allowed to call the panel API directly with Bearer JWT.
+  allowed_origins:
+    - "http://103.201.131.99:9788"
+
+web:
+  # Optional. When set, gaccel-panel serves the built React panel from this directory.
+  root: "./web/panel/dist"

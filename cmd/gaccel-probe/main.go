@@ -45,6 +45,12 @@ func main() {
 	clientID := flag.String("client-id", "", "client instance id")
 	clientVersion := flag.String("client-version", "", "client version")
 	clientPlatform := flag.String("client-platform", "", "client platform, for example windows/amd64")
+	gameID := flag.String("game-id", "", "flow metadata game_id")
+	policyID := flag.String("policy-id", "", "flow metadata policy_id")
+	ruleID := flag.String("rule-id", "", "flow metadata rule_id")
+	clientConfigRevision := flag.String("client-config-revision", "", "flow metadata client_config_revision")
+	processName := flag.String("process-name", "", "flow metadata process_name")
+	captureMode := flag.String("capture-mode", "", "flow metadata capture_mode")
 	flag.Parse()
 
 	if *showVersion {
@@ -57,7 +63,15 @@ func main() {
 		Version:  *clientVersion,
 		Platform: *clientPlatform,
 	}
-	if err := run(*addr, *alpn, *sni, *token, *mode, *targetHost, *targetPort, *httpPath, []byte(*payload), *count, *interval, *timeout, *insecure, client); err != nil {
+	metadata := flowMetadataConfig{
+		GameID:               *gameID,
+		PolicyID:             *policyID,
+		RuleID:               *ruleID,
+		ClientConfigRevision: *clientConfigRevision,
+		ProcessName:          *processName,
+		CaptureMode:          *captureMode,
+	}
+	if err := run(*addr, *alpn, *sni, *token, *mode, *targetHost, *targetPort, *httpPath, []byte(*payload), *count, *interval, *timeout, *insecure, client, metadata); err != nil {
 		fmt.Fprintf(os.Stderr, "probe failed: %v\n", err)
 		os.Exit(1)
 	}
@@ -69,7 +83,41 @@ type clientInfo struct {
 	Platform string
 }
 
-func run(addr, alpn, sni, token, mode, targetHost string, targetPort int, httpPath string, payload []byte, count int, interval, timeout time.Duration, insecure bool, client clientInfo) error {
+type flowMetadataConfig struct {
+	GameID               string
+	PolicyID             string
+	RuleID               string
+	ClientConfigRevision string
+	ProcessName          string
+	CaptureMode          string
+}
+
+func (m flowMetadataConfig) raw(network string) json.RawMessage {
+	metadata := protocol.FlowMetadata{
+		GameID:               strings.TrimSpace(m.GameID),
+		PolicyID:             strings.TrimSpace(m.PolicyID),
+		RuleID:               strings.TrimSpace(m.RuleID),
+		Network:              strings.ToLower(strings.TrimSpace(network)),
+		ProcessName:          strings.TrimSpace(m.ProcessName),
+		ClientConfigRevision: strings.TrimSpace(m.ClientConfigRevision),
+		CaptureMode:          strings.TrimSpace(m.CaptureMode),
+	}
+	if metadata.GameID == "" &&
+		metadata.PolicyID == "" &&
+		metadata.RuleID == "" &&
+		metadata.ClientConfigRevision == "" &&
+		metadata.ProcessName == "" &&
+		metadata.CaptureMode == "" {
+		return nil
+	}
+	data, err := json.Marshal(metadata)
+	if err != nil {
+		return nil
+	}
+	return data
+}
+
+func run(addr, alpn, sni, token, mode, targetHost string, targetPort int, httpPath string, payload []byte, count int, interval, timeout time.Duration, insecure bool, client clientInfo, metadata flowMetadataConfig) error {
 	if count <= 0 {
 		count = 1
 	}
@@ -108,14 +156,14 @@ func run(addr, alpn, sni, token, mode, targetHost string, targetPort int, httpPa
 		}
 		return probePing(ctx, controlCodec, count, interval)
 	case "udp":
-		return probeUDP(ctx, conn, controlCodec, targetHost, targetPort, payload, count)
+		return probeUDP(ctx, conn, controlCodec, targetHost, targetPort, payload, count, metadata)
 	case "tcp":
-		return probeTCP(ctx, conn, targetHost, targetPort, payload)
+		return probeTCP(ctx, conn, targetHost, targetPort, payload, metadata)
 	case "https":
 		if targetPort == 7 {
 			targetPort = 443
 		}
-		return probeHTTPS(ctx, conn, targetHost, targetPort, httpPath)
+		return probeHTTPS(ctx, conn, targetHost, targetPort, httpPath, metadata)
 	case "steam":
 		if targetHost == "" || targetHost == "127.0.0.1" {
 			targetHost = "steamcommunity.com"
@@ -123,7 +171,7 @@ func run(addr, alpn, sni, token, mode, targetHost string, targetPort int, httpPa
 		if targetPort == 7 {
 			targetPort = 443
 		}
-		return probeHTTPS(ctx, conn, targetHost, targetPort, httpPath)
+		return probeHTTPS(ctx, conn, targetHost, targetPort, httpPath, metadata)
 	default:
 		return fmt.Errorf("unknown mode %q", mode)
 	}
@@ -220,11 +268,12 @@ func printServerInfo(info *protocol.ServerInfo) {
 	)
 }
 
-func probeUDP(ctx context.Context, conn *quic.Conn, codec *lineCodec, targetHost string, targetPort int, payload []byte, count int) error {
+func probeUDP(ctx context.Context, conn *quic.Conn, codec *lineCodec, targetHost string, targetPort int, payload []byte, count int, metadata flowMetadataConfig) error {
 	if err := codec.Write(protocol.Message{
 		Type:       protocol.MessageOpenUDP,
 		TargetHost: targetHost,
 		TargetPort: targetPort,
+		Metadata:   metadata.raw("udp"),
 	}); err != nil {
 		return err
 	}
@@ -277,7 +326,7 @@ func probeUDP(ctx context.Context, conn *quic.Conn, codec *lineCodec, targetHost
 	return nil
 }
 
-func probeTCP(ctx context.Context, conn *quic.Conn, targetHost string, targetPort int, payload []byte) error {
+func probeTCP(ctx context.Context, conn *quic.Conn, targetHost string, targetPort int, payload []byte, metadata flowMetadataConfig) error {
 	stream, err := conn.OpenStreamSync(ctx)
 	if err != nil {
 		return err
@@ -287,6 +336,7 @@ func probeTCP(ctx context.Context, conn *quic.Conn, targetHost string, targetPor
 		Type:       protocol.MessageOpenTCP,
 		TargetHost: targetHost,
 		TargetPort: targetPort,
+		Metadata:   metadata.raw("tcp"),
 	}); err != nil {
 		return err
 	}
@@ -316,7 +366,7 @@ func probeTCP(ctx context.Context, conn *quic.Conn, targetHost string, targetPor
 	return nil
 }
 
-func probeHTTPS(ctx context.Context, conn *quic.Conn, targetHost string, targetPort int, path string) error {
+func probeHTTPS(ctx context.Context, conn *quic.Conn, targetHost string, targetPort int, path string, metadata flowMetadataConfig) error {
 	if path == "" {
 		path = "/"
 	}
@@ -332,6 +382,7 @@ func probeHTTPS(ctx context.Context, conn *quic.Conn, targetHost string, targetP
 		Type:       protocol.MessageOpenTCP,
 		TargetHost: targetHost,
 		TargetPort: targetPort,
+		Metadata:   metadata.raw("tcp"),
 	}); err != nil {
 		return err
 	}

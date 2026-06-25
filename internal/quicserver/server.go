@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/quic-go/quic-go"
 
@@ -16,6 +17,7 @@ import (
 	"gaccel-node/internal/config"
 	"gaccel-node/internal/metrics"
 	"gaccel-node/internal/protocol"
+	"gaccel-node/internal/routepolicy"
 	"gaccel-node/internal/router"
 	"gaccel-node/internal/sessions"
 )
@@ -90,6 +92,8 @@ func (s *Server) handleConn(ctx context.Context, conn *quic.Conn) {
 	sessionRecord := s.sessions.Register(sessionID, remote)
 	session := newConnSession(conn, s.cfg, s.collector, sessionRecord, logger)
 	defer func() {
+		reason, source := session.closeReasonSource()
+		s.sessions.End(sessionID, reason, source, time.Now())
 		session.close()
 		s.sessions.Remove(sessionID)
 	}()
@@ -97,14 +101,17 @@ func (s *Server) handleConn(ctx context.Context, conn *quic.Conn) {
 	logger.Info("accepted connection")
 
 	go s.drainDatagrams(connCtx, session, conn, logger)
+	go session.monitorHeartbeat(connCtx)
 
 	for {
 		stream, err := conn.AcceptStream(connCtx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, io.EOF) {
+				session.markCloseReason(classifySessionClose(err, ctx))
 				return
 			}
 			logger.Debug("accept stream stopped", "error", err)
+			session.markCloseReason(classifySessionClose(err, ctx))
 			return
 		}
 		go s.handleControlStream(connCtx, session, stream, logger)
@@ -164,10 +171,10 @@ func (s *Server) handleControlStream(ctx context.Context, session *connSession, 
 				_ = codec.Write(protocol.ErrorMessage(protocol.ErrorUnauthorized, "authenticate first"))
 				return
 			}
-			flowID, err := session.openUDP(ctx, msg.TargetHost, msg.TargetPort)
+			flowID, err := session.openUDP(ctx, msg.TargetHost, msg.TargetPort, msg.Metadata)
 			if err != nil {
 				s.collector.FlowOpenFailed("udp", flowFailureReason(err))
-				logger.Debug("open udp failed", "target_host", msg.TargetHost, "target_port", msg.TargetPort, "error", err)
+				logger.Debug("open udp failed", "target_host", msg.TargetHost, "target_port", msg.TargetPort, "metadata", string(msg.Metadata), "error", err)
 				_ = codec.Write(protocol.ErrorMessage(flowErrorCode("udp", err), err.Error()))
 				return
 			}
@@ -180,10 +187,10 @@ func (s *Server) handleControlStream(ctx context.Context, session *connSession, 
 				_ = codec.Write(protocol.ErrorMessage(protocol.ErrorUnauthorized, "authenticate first"))
 				return
 			}
-			flowID, targetConn, release, err := session.openTCPTarget(ctx, msg.TargetHost, msg.TargetPort)
+			flowID, targetConn, release, err := session.openTCPTarget(ctx, msg.TargetHost, msg.TargetPort, msg.Metadata)
 			if err != nil {
 				s.collector.FlowOpenFailed("tcp", flowFailureReason(err))
-				logger.Debug("open tcp failed", "target_host", msg.TargetHost, "target_port", msg.TargetPort, "error", err)
+				logger.Debug("open tcp failed", "target_host", msg.TargetHost, "target_port", msg.TargetPort, "metadata", string(msg.Metadata), "error", err)
 				_ = codec.Write(protocol.ErrorMessage(flowErrorCode("tcp", err), err.Error()))
 				return
 			}
@@ -224,7 +231,7 @@ func flowFailureReason(err error) string {
 	if err == nil {
 		return "unknown"
 	}
-	if errors.Is(err, router.ErrTargetDenied) {
+	if errors.Is(err, router.ErrTargetDenied) || errors.Is(err, routepolicy.ErrPolicyDenied) {
 		return "denied"
 	}
 	if errors.Is(err, auth.ErrPermissionDenied) {
@@ -275,7 +282,7 @@ func flowErrorCode(network string, err error) string {
 	switch {
 	case errors.Is(err, auth.ErrPermissionDenied):
 		return protocol.ErrorPermissionDenied
-	case errors.Is(err, router.ErrTargetDenied):
+	case errors.Is(err, router.ErrTargetDenied), errors.Is(err, routepolicy.ErrPolicyDenied):
 		return protocol.ErrorTargetDenied
 	case strings.Contains(err.Error(), "max flows"):
 		return protocol.ErrorMaxFlowsExceeded
@@ -288,15 +295,42 @@ func flowErrorCode(network string, err error) string {
 }
 
 func serverInfo(cfg *config.Config) *protocol.ServerInfo {
+	keepalive := int(cfg.Limits.HeartbeatInterval.Seconds())
+	if keepalive <= 0 {
+		keepalive = 15
+	}
 	return &protocol.ServerInfo{
 		ALPN:                            cfg.Server.ALPN,
 		ProtocolVersion:                 protocol.Version,
-		Capabilities:                    []string{"auth_hmac", "udp_datagram", "tcp_stream", "ping", "flow_close_notify"},
-		KeepaliveIntervalSeconds:        15,
+		Capabilities:                    []string{"auth_hmac", "udp_datagram", "tcp_stream", "ping", "flow_close_notify", "flow_metadata", "route_policy"},
+		KeepaliveIntervalSeconds:        keepalive,
 		DatagramHeaderBytes:             protocol.DatagramHeaderLen,
 		RecommendedDatagramBytes:        protocol.RecommendedDatagramBytes,
 		RecommendedDatagramPayloadBytes: protocol.RecommendedDatagramPayloadBytes,
 		TokenPolicy:                     "validated_on_auth",
+	}
+}
+
+func classifySessionClose(err error, parent context.Context) (string, string) {
+	if parent.Err() != nil || errors.Is(err, context.Canceled) {
+		return "node_shutdown", "node"
+	}
+	if errors.Is(err, io.EOF) {
+		return "client_shutdown", "client"
+	}
+	if err == nil {
+		return "client_shutdown", "client"
+	}
+	text := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(text, "heartbeat_timeout"):
+		return "heartbeat_timeout", "node"
+	case strings.Contains(text, "idle") || strings.Contains(text, "timeout"):
+		return "quic_idle_timeout", "node"
+	case strings.Contains(text, "closed"):
+		return "client_shutdown", "client"
+	default:
+		return "network_lost", "network"
 	}
 }
 

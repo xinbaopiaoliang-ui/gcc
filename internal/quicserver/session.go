@@ -17,6 +17,7 @@ import (
 	"gaccel-node/internal/limiter"
 	"gaccel-node/internal/metrics"
 	"gaccel-node/internal/protocol"
+	"gaccel-node/internal/routepolicy"
 	"gaccel-node/internal/router"
 	"gaccel-node/internal/sessions"
 )
@@ -31,6 +32,8 @@ type connSession struct {
 	limiter         *limiter.ByteLimiter
 	nextFlow        atomic.Uint32
 	releaseUserConn func()
+	closeReason     atomic.Value
+	closeSource     atomic.Value
 
 	mu       sync.RWMutex
 	flows    map[uint32]*udpFlow
@@ -75,12 +78,58 @@ func (s *connSession) setPrincipal(principal *auth.Principal) error {
 	if rateLimitMbps > 0 {
 		s.limiter = limiter.NewByteLimiter(rateLimitMbps)
 	}
-	s.record.SetPrincipal(principal.UserID, principal.DeviceID, maxConnections, rateLimitMbps, principal.AllowTCP, principal.AllowUDP)
+	s.record.SetPrincipal(principal.UserID, principal.DeviceID, maxConnections, rateLimitMbps, principal.AllowTCP, principal.AllowUDP, principal.GameIDs, principal.PolicyIDs, principal.ConfigRevision)
 	return nil
 }
 
 func (s *connSession) authenticated() bool {
 	return s.principal.Load() != nil
+}
+
+func (s *connSession) markCloseReason(reason string, source string) {
+	if reason != "" {
+		s.closeReason.Store(reason)
+	}
+	if source != "" {
+		s.closeSource.Store(source)
+	}
+}
+
+func (s *connSession) closeReasonSource() (string, string) {
+	reason, _ := s.closeReason.Load().(string)
+	source, _ := s.closeSource.Load().(string)
+	if reason == "" {
+		reason = "connection_closed"
+	}
+	if source == "" {
+		source = "client"
+	}
+	return reason, source
+}
+
+func (s *connSession) monitorHeartbeat(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if !s.authenticated() {
+				continue
+			}
+			timeout := s.cfg.Current().Limits.SessionDisconnectTimeout
+			if timeout <= 0 {
+				timeout = 45 * time.Second
+			}
+			if time.Since(s.record.LastSeenTime()) <= timeout {
+				continue
+			}
+			s.markCloseReason("heartbeat_timeout", "node")
+			_ = s.conn.CloseWithError(2, "heartbeat_timeout")
+			return
+		}
+	}
 }
 
 func (s *connSession) userID() string {
@@ -91,7 +140,7 @@ func (s *connSession) userID() string {
 	return principal.UserID
 }
 
-func (s *connSession) openUDP(ctx context.Context, targetHost string, targetPort int) (uint32, error) {
+func (s *connSession) openUDP(ctx context.Context, targetHost string, targetPort int, rawMetadata []byte) (uint32, error) {
 	if !s.authenticated() {
 		return 0, errors.New("session is not authenticated")
 	}
@@ -100,6 +149,10 @@ func (s *connSession) openUDP(ctx context.Context, targetHost string, targetPort
 	}
 	s.record.Touch()
 	cfg := s.cfg.Current()
+	metadata, _, err := s.authorizeFlow(cfg, "udp", targetHost, targetPort, rawMetadata)
+	if err != nil {
+		return 0, err
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -138,14 +191,14 @@ func (s *connSession) openUDP(ctx context.Context, targetHost string, targetPort
 		logger:      s.logger.With("flow_id", flowID, "target", target),
 	})
 	s.flows[flowID] = flow
-	flow.record = s.record.AddFlow(flowID, "udp", target)
-	s.collector.UDPFlowOpened()
+	flow.record = s.record.AddFlow(flowID, "udp", target, sessionFlowMetadata(metadata))
+	s.collector.UDPFlowOpenedWithPolicy(metadata.GameID, metadata.PolicyID)
 	flow.start()
 
 	return flowID, nil
 }
 
-func (s *connSession) openTCPTarget(ctx context.Context, targetHost string, targetPort int) (uint32, net.Conn, func(string), error) {
+func (s *connSession) openTCPTarget(ctx context.Context, targetHost string, targetPort int, rawMetadata []byte) (uint32, net.Conn, func(string), error) {
 	if !s.authenticated() {
 		return 0, nil, nil, errors.New("session is not authenticated")
 	}
@@ -154,6 +207,10 @@ func (s *connSession) openTCPTarget(ctx context.Context, targetHost string, targ
 	}
 	s.record.Touch()
 	cfg := s.cfg.Current()
+	metadata, _, err := s.authorizeFlow(cfg, "tcp", targetHost, targetPort, rawMetadata)
+	if err != nil {
+		return 0, nil, nil, err
+	}
 
 	flowID, release, err := s.reserveTCPFlow()
 	if err != nil {
@@ -179,14 +236,26 @@ func (s *connSession) openTCPTarget(ctx context.Context, targetHost string, targ
 	}
 
 	s.logger.Debug("tcp flow opened", "flow_id", flowID, "target", target)
-	flowRecord := s.record.AddFlow(flowID, "tcp", target)
-	s.collector.TCPFlowOpened()
+	flowRecord := s.record.AddFlow(flowID, "tcp", target, sessionFlowMetadata(metadata))
+	s.collector.TCPFlowOpenedWithPolicy(metadata.GameID, metadata.PolicyID)
 	metricsRelease := func(reason string) {
 		s.collector.TCPFlowClosed(reason)
 		s.record.RemoveFlow(flowID)
 		release()
 	}
 	return flowID, &trackedConn{Conn: targetConn, userID: s.userID(), flow: flowRecord}, metricsRelease, nil
+}
+
+func (s *connSession) authorizeFlow(cfg *config.Config, network, targetHost string, targetPort int, rawMetadata []byte) (protocol.FlowMetadata, routepolicy.Match, error) {
+	metadata, err := protocol.ParseFlowMetadata(rawMetadata)
+	if err != nil {
+		return protocol.FlowMetadata{}, routepolicy.Match{}, err
+	}
+	match, err := routepolicy.Evaluate(cfg.RoutePolicies, s.principal.Load(), metadata, network, targetHost, targetPort)
+	if err != nil {
+		return metadata, routepolicy.Match{}, err
+	}
+	return metadata, match, nil
 }
 
 func (s *connSession) relayTCP(ctx context.Context, stream *quic.Stream, targetConn net.Conn, flowID uint32, release func(string)) {
@@ -388,6 +457,18 @@ func (c *trackedConn) CloseWrite() error {
 		return nil
 	}
 	return closeWriter.CloseWrite()
+}
+
+func sessionFlowMetadata(metadata protocol.FlowMetadata) sessions.FlowMetadata {
+	return sessions.FlowMetadata{
+		GameID:               metadata.GameID,
+		PolicyID:             metadata.PolicyID,
+		RuleID:               metadata.RuleID,
+		ProcessName:          metadata.ProcessName,
+		ClientConfigRevision: metadata.ClientConfigRevision,
+		CaptureMode:          metadata.CaptureMode,
+		TraceID:              metadata.TraceID,
+	}
 }
 
 type udpFlowConfig struct {

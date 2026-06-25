@@ -28,7 +28,7 @@ import (
 
 const (
 	defaultAllowedHosts = "steamcommunity.com,.steamcommunity.com,steampowered.com,.steampowered.com,steamstatic.com,.steamstatic.com,steamusercontent.com,.steamusercontent.com,steamcontent.com,.steamcontent.com,steam-chat.com,.steam-chat.com,steamserver.net,.steamserver.net,steamgames.com,.steamgames.com,steam-api.com,.steam-api.com,valvesoftware.com,.valvesoftware.com,akamaihd.net,.akamaihd.net,fastly.net,.fastly.net"
-	defaultAllowedPorts = "443"
+	defaultAllowedPorts = "443,27014-27050"
 )
 
 var version = "dev"
@@ -45,8 +45,9 @@ type clientInfo struct {
 }
 
 type relayClient struct {
-	conn   *quic.Conn
-	logger *slog.Logger
+	conn     *quic.Conn
+	logger   *slog.Logger
+	metadata connectMetadata
 }
 
 type proxyServer struct {
@@ -65,6 +66,82 @@ type allowRules struct {
 	ports map[int]struct{}
 }
 
+type connectMetadata struct {
+	GameID               string
+	PolicyID             string
+	ClientConfigRevision string
+	ProcessName          string
+	CaptureMode          string
+}
+
+func (m connectMetadata) raw(host string, port int) json.RawMessage {
+	metadata := protocol.FlowMetadata{
+		GameID:               strings.TrimSpace(m.GameID),
+		PolicyID:             strings.TrimSpace(m.PolicyID),
+		RuleID:               steamRuleID(host, port),
+		Network:              "tcp",
+		ProcessName:          strings.TrimSpace(m.ProcessName),
+		ClientConfigRevision: strings.TrimSpace(m.ClientConfigRevision),
+		CaptureMode:          strings.TrimSpace(m.CaptureMode),
+	}
+	if metadata.GameID == "" &&
+		metadata.PolicyID == "" &&
+		metadata.RuleID == "" &&
+		metadata.ClientConfigRevision == "" &&
+		metadata.ProcessName == "" &&
+		metadata.CaptureMode == "" {
+		return nil
+	}
+	data, err := json.Marshal(metadata)
+	if err != nil {
+		return nil
+	}
+	return data
+}
+
+func steamRuleID(host string, port int) string {
+	host = strings.ToLower(strings.TrimSpace(host))
+	if port != 443 {
+		return ""
+	}
+	switch {
+	case host == "store.steampowered.com":
+		return "steam-store-tcp-443"
+	case host == "steamcommunity.com":
+		return "steam-community-tcp-443"
+	case domainOrSubdomain(host, "steamcommunity.com"):
+		return "steamcommunity-sub-tcp-443"
+	case domainOrSubdomain(host, "steamstatic.com"):
+		return "steamstatic-sub-tcp-443"
+	case domainOrSubdomain(host, "steamcontent.com"):
+		return "steamcontent-sub-tcp-443"
+	case domainOrSubdomain(host, "steampowered.com"):
+		return "steampowered-sub-tcp-443"
+	case domainOrSubdomain(host, "steamusercontent.com"):
+		return "steamusercontent-sub-tcp-443"
+	case domainOrSubdomain(host, "steam-chat.com"):
+		return "steam-chat-sub-tcp-443"
+	case domainOrSubdomain(host, "steamserver.net"):
+		return "steamserver-sub-tcp-443"
+	case domainOrSubdomain(host, "steamgames.com"):
+		return "steamgames-sub-tcp-443"
+	case domainOrSubdomain(host, "steam-api.com"):
+		return "steam-api-sub-tcp-443"
+	case domainOrSubdomain(host, "valvesoftware.com"):
+		return "valvesoftware-sub-tcp-443"
+	case domainOrSubdomain(host, "akamaihd.net"):
+		return "akamaihd-sub-tcp-443"
+	case domainOrSubdomain(host, "fastly.net"):
+		return "fastly-sub-tcp-443"
+	default:
+		return ""
+	}
+}
+
+func domainOrSubdomain(host, domain string) bool {
+	return host == domain || strings.HasSuffix(host, "."+domain)
+}
+
 func main() {
 	showVersion := flag.Bool("version", false, "print version and exit")
 	listen := flag.String("listen", "127.0.0.1:18080", "local HTTP CONNECT listen address")
@@ -77,7 +154,7 @@ func main() {
 	clientVersion := flag.String("client-version", version, "client version")
 	clientPlatform := flag.String("client-platform", runtime.GOOS+"/"+runtime.GOARCH, "client platform")
 	allowedHosts := flag.String("allowed-hosts", defaultAllowedHosts, "comma-separated allowed CONNECT hosts; prefix a rule with . to allow subdomains")
-	allowedPorts := flag.String("allowed-ports", defaultAllowedPorts, "comma-separated allowed CONNECT ports")
+	allowedPorts := flag.String("allowed-ports", defaultAllowedPorts, "comma-separated allowed CONNECT ports or ranges")
 	dialTimeout := flag.Duration("dial-timeout", 10*time.Second, "timeout for opening a relay flow")
 	keepaliveInterval := flag.Duration("keepalive-interval", 15*time.Second, "QUIC control ping interval")
 	allowNonLocalListen := flag.Bool("allow-nonlocal-listen", false, "allow listening on non-loopback addresses")
@@ -87,6 +164,11 @@ func main() {
 	launchSteam := flag.Bool("launch-steam", false, "launch Steam after the local CONNECT proxy is ready")
 	steamExe := flag.String("steam-exe", "", "path to Steam.exe; empty means auto-detect or use the steam:// URL handler")
 	steamURL := flag.String("steam-url", "steam://open/store", "Steam URL to open when launching Steam")
+	gameID := flag.String("game-id", "steam", "flow metadata game_id")
+	policyID := flag.String("policy-id", "steam-web-v1", "flow metadata policy_id")
+	clientConfigRevision := flag.String("client-config-revision", "20260616.1", "flow metadata client_config_revision")
+	processName := flag.String("process-name", "steam.exe", "flow metadata process_name")
+	captureMode := flag.String("capture-mode", "connect-demo", "flow metadata capture_mode")
 	flag.Parse()
 
 	if *showVersion {
@@ -136,6 +218,13 @@ func main() {
 			Platform: *clientPlatform,
 		},
 		logger: logger,
+		metadata: connectMetadata{
+			GameID:               *gameID,
+			PolicyID:             *policyID,
+			ClientConfigRevision: *clientConfigRevision,
+			ProcessName:          *processName,
+			CaptureMode:          *captureMode,
+		},
 	})
 	if err != nil {
 		logger.Error("connect relay failed", "error", err)
@@ -193,6 +282,7 @@ type relayOptions struct {
 	insecure bool
 	client   clientInfo
 	logger   *slog.Logger
+	metadata connectMetadata
 }
 
 func connectRelay(ctx context.Context, opts relayOptions) (*relayClient, error) {
@@ -221,7 +311,7 @@ func connectRelay(ctx context.Context, opts relayOptions) (*relayClient, error) 
 		return nil, err
 	}
 	opts.logger.Info("relay authenticated", "node", opts.addr, "client_id", opts.client.ID, "client_version", opts.client.Version)
-	return &relayClient{conn: conn, logger: opts.logger}, nil
+	return &relayClient{conn: conn, logger: opts.logger, metadata: opts.metadata}, nil
 }
 
 func authenticate(ctx context.Context, codec *lineCodec, token string, client clientInfo) error {
@@ -317,6 +407,7 @@ func (c *relayClient) openTCP(ctx context.Context, host string, port int) (*quic
 		Type:       protocol.MessageOpenTCP,
 		TargetHost: host,
 		TargetPort: port,
+		Metadata:   c.metadata.raw(host, port),
 	}); err != nil {
 		stream.Close()
 		return nil, nil, 0, err
@@ -451,11 +542,21 @@ func parseAllowRules(hostRules, portRules string) (allowRules, error) {
 	}
 	ports := map[int]struct{}{}
 	for _, value := range splitCSV(portRules) {
-		port, err := strconv.Atoi(value)
-		if err != nil || port <= 0 || port > 65535 {
+		startValue, endValue, ok := strings.Cut(value, "-")
+		start, err := strconv.Atoi(strings.TrimSpace(startValue))
+		if err != nil || start <= 0 || start > 65535 {
 			return allowRules{}, fmt.Errorf("invalid port %q", value)
 		}
-		ports[port] = struct{}{}
+		end := start
+		if ok {
+			end, err = strconv.Atoi(strings.TrimSpace(endValue))
+			if err != nil || end <= 0 || end > 65535 || end < start {
+				return allowRules{}, fmt.Errorf("invalid port range %q", value)
+			}
+		}
+		for port := start; port <= end; port++ {
+			ports[port] = struct{}{}
+		}
 	}
 	if len(ports) == 0 {
 		return allowRules{}, errors.New("allowed ports are required")

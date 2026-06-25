@@ -23,6 +23,9 @@ func main() {
 	allowTCP := flag.Bool("allow-tcp", true, "allow TCP relay")
 	allowUDP := flag.Bool("allow-udp", true, "allow UDP relay")
 	games := flag.String("games", "", "comma separated game ids")
+	gameIDs := flag.String("game-ids", "", "comma separated game ids")
+	policyIDs := flag.String("policy-ids", "", "comma separated policy ids")
+	configRevision := flag.String("config-revision", "", "client config revision allowed by this token")
 	regions := flag.String("regions", "", "comma separated region ids")
 	flag.Parse()
 
@@ -65,6 +68,9 @@ func main() {
 		RateLimitMbps:  *rateLimit,
 		AllowTCP:       allowTCP,
 		AllowUDP:       allowUDP,
+		GameIDs:        append(splitList(*gameIDs), splitList(*games)...),
+		PolicyIDs:      splitList(*policyIDs),
+		ConfigRevision: strings.TrimSpace(*configRevision),
 		Games:          splitList(*games),
 		Regions:        splitList(*regions),
 	}

@@ -21,6 +21,9 @@ type Principal struct {
 	RateLimitMbps  int
 	AllowTCP       bool
 	AllowUDP       bool
+	GameIDs        []string
+	PolicyIDs      []string
+	ConfigRevision string
 }
 
 type Authenticator interface {

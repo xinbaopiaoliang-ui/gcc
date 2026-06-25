@@ -30,6 +30,7 @@ const (
 	CommandNoop         = "noop"
 	CommandConfigReload = "config_reload"
 	CommandApplyConfig  = "apply_config"
+	CommandApplyPolicy  = "apply_policy"
 	CommandStageUpgrade = "stage_upgrade"
 )
 
@@ -76,6 +77,11 @@ type CommandResult struct {
 type ApplyConfigPayload struct {
 	SHA256     string `json:"sha256"`
 	ConfigYAML string `json:"config_yaml"`
+}
+
+type ApplyPolicyPayload struct {
+	SHA256            string `json:"sha256"`
+	RoutePoliciesYAML string `json:"route_policies_yaml"`
 }
 
 func New(cfg *config.Manager, logger *slog.Logger, version string) *Client {
@@ -207,7 +213,7 @@ func (c *Client) verifyResponse(cfg *config.Config, header http.Header, body []b
 	if timestamp.Before(now.Add(-skew)) || timestamp.After(now.Add(skew)) {
 		return errors.New("panel command timestamp is outside the allowed clock skew")
 	}
-	if !c.nonces.add(nonce, now.Add(skew)) {
+	if !c.nonces.add(nonce, now, now.Add(skew)) {
 		return errors.New("panel command nonce was already used")
 	}
 	expected := SignBody(cfg.Panel.CommandSecret, timestampValue, nonce, body)
@@ -272,6 +278,23 @@ func (c *Client) execute(ctx context.Context, cfg *config.Config, command Comman
 			"sha256":      applied.SHA256,
 			"backup_path": applied.BackupPath,
 		}
+	case CommandApplyPolicy:
+		var payload ApplyPolicyPayload
+		if err := json.Unmarshal(command.Payload, &payload); err != nil {
+			result.Error = "invalid apply_policy payload: " + err.Error()
+			return result
+		}
+		applied, err := c.cfg.ApplyRoutePolicies([]byte(payload.RoutePoliciesYAML), payload.SHA256)
+		if err != nil {
+			result.Error = err.Error()
+			return result
+		}
+		result.OK = true
+		result.Details = map[string]string{
+			"sha256":      applied.SHA256,
+			"backup_path": applied.BackupPath,
+			"revision":    applied.Config.RoutePolicies.Revision,
+		}
 	case CommandStageUpgrade:
 		var payload upgrade.Request
 		if err := json.Unmarshal(command.Payload, &payload); err != nil {
@@ -331,10 +354,9 @@ func newNonceCache() *nonceCache {
 	return &nonceCache{nonces: map[string]time.Time{}}
 }
 
-func (c *nonceCache) add(nonce string, expiresAt time.Time) bool {
+func (c *nonceCache) add(nonce string, now time.Time, expiresAt time.Time) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	now := time.Now()
 	for key, expires := range c.nonces {
 		if !expires.After(now) {
 			delete(c.nonces, key)

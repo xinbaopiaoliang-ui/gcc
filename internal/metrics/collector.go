@@ -37,9 +37,11 @@ type UserStats struct {
 }
 
 type flowEventKey struct {
-	Network string
-	Event   string
-	Reason  string
+	Network  string
+	Event    string
+	Reason   string
+	GameID   string
+	PolicyID string
 }
 
 type Snapshot struct {
@@ -64,10 +66,12 @@ type UserSnapshot struct {
 }
 
 type FlowEventSnapshot struct {
-	Network string `json:"network"`
-	Event   string `json:"event"`
-	Reason  string `json:"reason"`
-	Count   int64  `json:"count"`
+	Network  string `json:"network"`
+	Event    string `json:"event"`
+	Reason   string `json:"reason"`
+	GameID   string `json:"game_id,omitempty"`
+	PolicyID string `json:"policy_id,omitempty"`
+	Count    int64  `json:"count"`
 }
 
 func NewCollector() *Collector {
@@ -86,8 +90,12 @@ func (c *Collector) ConnClosed() {
 }
 
 func (c *Collector) UDPFlowOpened() {
+	c.UDPFlowOpenedWithPolicy("", "")
+}
+
+func (c *Collector) UDPFlowOpenedWithPolicy(gameID, policyID string) {
 	c.activeUDPFlows.Add(1)
-	c.AddFlowEvent("udp", "open", "success")
+	c.AddFlowEventWithPolicy("udp", "open", "success", gameID, policyID)
 }
 
 func (c *Collector) UDPFlowClosed(reason string) {
@@ -96,8 +104,12 @@ func (c *Collector) UDPFlowClosed(reason string) {
 }
 
 func (c *Collector) TCPFlowOpened() {
+	c.TCPFlowOpenedWithPolicy("", "")
+}
+
+func (c *Collector) TCPFlowOpenedWithPolicy(gameID, policyID string) {
 	c.activeTCPFlows.Add(1)
-	c.AddFlowEvent("tcp", "open", "success")
+	c.AddFlowEventWithPolicy("tcp", "open", "success", gameID, policyID)
 }
 
 func (c *Collector) TCPFlowClosed(reason string) {
@@ -110,10 +122,16 @@ func (c *Collector) FlowOpenFailed(network, reason string) {
 }
 
 func (c *Collector) AddFlowEvent(network, event, reason string) {
+	c.AddFlowEventWithPolicy(network, event, reason, "", "")
+}
+
+func (c *Collector) AddFlowEventWithPolicy(network, event, reason, gameID, policyID string) {
 	key := flowEventKey{
-		Network: normalizeReason(network),
-		Event:   normalizeReason(event),
-		Reason:  normalizeReason(reason),
+		Network:  normalizeReason(network),
+		Event:    normalizeReason(event),
+		Reason:   normalizeReason(reason),
+		GameID:   normalizeReasonEmpty(gameID),
+		PolicyID: normalizeReasonEmpty(policyID),
 	}
 	c.flowEventCounter(key).Add(1)
 }
@@ -201,10 +219,12 @@ func (c *Collector) FlowEventSnapshots() []FlowEventSnapshot {
 	items := make([]FlowEventSnapshot, 0, len(c.flowEvents))
 	for key, counter := range c.flowEvents {
 		items = append(items, FlowEventSnapshot{
-			Network: key.Network,
-			Event:   key.Event,
-			Reason:  key.Reason,
-			Count:   counter.Load(),
+			Network:  key.Network,
+			Event:    key.Event,
+			Reason:   key.Reason,
+			GameID:   key.GameID,
+			PolicyID: key.PolicyID,
+			Count:    counter.Load(),
 		})
 	}
 	c.flowMu.RUnlock()
@@ -215,7 +235,16 @@ func (c *Collector) FlowEventSnapshots() []FlowEventSnapshot {
 		if items[i].Event != items[j].Event {
 			return items[i].Event < items[j].Event
 		}
-		return items[i].Reason < items[j].Reason
+		if items[i].Reason != items[j].Reason {
+			return items[i].Reason < items[j].Reason
+		}
+		if items[i].GameID != items[j].GameID {
+			return items[i].GameID < items[j].GameID
+		}
+		if items[i].PolicyID != items[j].PolicyID {
+			return items[i].PolicyID < items[j].PolicyID
+		}
+		return items[i].Count < items[j].Count
 	})
 	return items
 }
@@ -275,7 +304,7 @@ func (s Snapshot) WritePrometheus(w io.Writer) {
 		fmt.Fprintf(w, "gaccel_user_tcp_target_to_client_bytes_total{user_id=%q} %d\n", user.UserID, user.TCPTargetToClient)
 	}
 	for _, event := range s.FlowEvents {
-		fmt.Fprintf(w, "gaccel_flow_events_total{network=%q,event=%q,reason=%q} %d\n", event.Network, event.Event, event.Reason, event.Count)
+		fmt.Fprintf(w, "gaccel_flow_events_total{network=%q,event=%q,reason=%q,game_id=%q,policy_id=%q} %d\n", event.Network, event.Event, event.Reason, event.GameID, event.PolicyID, event.Count)
 	}
 }
 
@@ -295,5 +324,9 @@ func normalizeReason(value string) string {
 	if value == "" {
 		return "unknown"
 	}
+	return value
+}
+
+func normalizeReasonEmpty(value string) string {
 	return value
 }

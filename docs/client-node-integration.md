@@ -4,6 +4,8 @@
 
 阅读对象可以是人，也可以是 AI 开发助手。实现时请严格按本文字段、顺序和错误处理执行，不要自行推断隐藏行为。
 
+v0.6.0 联调时，建议同时阅读 `docs/v0.6.0-integration-checklist.md`，用于确认业务后台、控制面板、节点和客户端四方字段是否一致。
+
 ## 范围
 
 本文只描述客户端和节点之间的协议与联调要求。
@@ -344,7 +346,7 @@ UDP flow 在 control stream 上创建。
 | `capture_mode` | 建议 | `process`、`wfp`、`windivert`、`tun` 等。 |
 | `trace_id` | 可选 | 客户端生成的链路追踪 ID。 |
 
-节点后续会校验：
+节点启用 `route_policies` 后会校验：
 
 ```text
 metadata.game_id 是否被 token 允许
@@ -481,14 +483,11 @@ TCP flow 随对应 QUIC stream 关闭释放。
 - `rate_limit_mbps`
 - `allow_tcp`
 - `allow_udp`
-
-后续节点策略版本需要支持：
-
 - `game_ids`
 - `policy_ids`
 - `config_revision`
 
-客户端可以先按完整格式实现，节点未启用策略校验前只会使用已支持字段。
+当节点配置了 `route_policies` 时，`game_ids`、`policy_ids` 和 `config_revision` 会参与 `OPEN_TCP` / `OPEN_UDP` 强校验。
 
 ## 客户端日志字段
 
@@ -593,7 +592,7 @@ Steam 商店：
 - TCP payload 在 `OPEN_TCP` 成功前写入 stream。
 - 把 `process_name` 当作安全授权依据。
 
-## 节点当前能力与后续能力
+## 节点当前能力
 
 当前节点已支持：
 
@@ -604,13 +603,10 @@ Steam 商店：
 - OPEN_UDP。
 - QUIC DATAGRAM UDP。
 - token 的用户、设备、连接数、限速、TCP/UDP 权限。
-
-后续策略版节点需要支持：
-
 - 解析 structured metadata。
 - token claims 校验 `game_ids` / `policy_ids`。
 - 节点本地 `route_policies` 校验。
 - `/sessions` 输出 `game_id` / `policy_id` / `rule_id`。
 - metrics 按游戏和策略聚合。
 
-在后续策略校验上线前，客户端仍应按本文完整 metadata 发送，保证协议向前兼容。
+当节点未配置 `route_policies` 时，为兼容旧联调，节点不会强制要求 flow metadata；一旦配置 `route_policies`，客户端必须按本文完整 metadata 发送，否则 `OPEN_TCP` / `OPEN_UDP` 会返回 `target_denied`。

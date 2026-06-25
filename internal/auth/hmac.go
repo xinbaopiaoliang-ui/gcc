@@ -34,6 +34,9 @@ type TokenClaims struct {
 	RateLimitMbps  int      `json:"rate_limit_mbps,omitempty"`
 	AllowTCP       *bool    `json:"allow_tcp,omitempty"`
 	AllowUDP       *bool    `json:"allow_udp,omitempty"`
+	GameIDs        []string `json:"game_ids,omitempty"`
+	PolicyIDs      []string `json:"policy_ids,omitempty"`
+	ConfigRevision string   `json:"config_revision,omitempty"`
 	Games          []string `json:"games,omitempty"`
 	Regions        []string `json:"regions,omitempty"`
 }
@@ -73,6 +76,9 @@ func (a *HMACAuthenticator) Authenticate(token string) (*Principal, error) {
 		RateLimitMbps:  claims.RateLimitMbps,
 		AllowTCP:       allowTCP,
 		AllowUDP:       allowUDP,
+		GameIDs:        cleanList(append(claims.GameIDs, claims.Games...)),
+		PolicyIDs:      cleanList(claims.PolicyIDs),
+		ConfigRevision: strings.TrimSpace(claims.ConfigRevision),
 	}, nil
 }
 
@@ -166,4 +172,24 @@ func signHMAC(unsigned string, secret []byte) []byte {
 	mac := hmac.New(sha256.New, secret)
 	mac.Write([]byte(unsigned))
 	return mac.Sum(nil)
+}
+
+func cleanList(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(values))
+	cleaned := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		cleaned = append(cleaned, value)
+	}
+	return cleaned
 }

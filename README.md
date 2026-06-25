@@ -123,13 +123,13 @@ auth:
 生成短期 token：
 
 ```bash
-gaccel-token -secret "replace-with-a-long-random-secret" -user user-1 -device device-1 -ttl 15m -max-connections 2 -rate-limit-mbps 50
+gaccel-token -secret "replace-with-a-long-random-secret" -user user-1 -device device-1 -ttl 15m -max-connections 2 -rate-limit-mbps 50 -game-ids steam -policy-ids steam-web-v1 -config-revision 20260616.1
 ```
 
 源码运行时也可以这样生成：
 
 ```bash
-go run ./cmd/gaccel-token -secret "replace-with-a-long-random-secret" -user user-1 -ttl 15m
+go run ./cmd/gaccel-token -secret "replace-with-a-long-random-secret" -user user-1 -ttl 15m -game-ids steam -policy-ids steam-web-v1 -config-revision 20260616.1
 ```
 
 配置修改后热重载：
@@ -179,7 +179,7 @@ upgrade:
   allow_http: false
 ```
 
-上报内容包含 `status`、节点版本、时间戳、`node` 元数据、QUIC 监听信息和指标快照。`panel.report_url` 为空时不会启动上报。`panel.command_url` 可选开启签名运维命令拉取，当前支持 `noop`、`config_reload`、`apply_config` 和 `stage_upgrade`。
+上报内容包含 `status`、节点版本、时间戳、`node` 元数据、QUIC 监听信息和指标快照。`panel.report_url` 为空时不会启动上报。`panel.command_url` 可选开启签名运维命令拉取，当前支持 `noop`、`config_reload`、`apply_config`、`apply_policy` 和 `stage_upgrade`。
 
 `stage_upgrade` 只下载并校验升级包，把文件暂存在 `upgrade.stage_dir`，不会直接替换正在运行的二进制，也不会自动重启节点。
 

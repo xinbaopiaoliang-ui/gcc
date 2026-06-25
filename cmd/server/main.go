@@ -55,7 +55,7 @@ func main() {
 		}
 	}()
 
-	reporter := panelreport.New(cfgManager, logger, collector, version, commandResults)
+	reporter := panelreport.New(cfgManager, logger, collector, sessionRegistry, version, commandResults)
 	go reporter.Run(ctx)
 
 	commandClient := panelcommand.New(cfgManager, logger, version)

@@ -4,3 +4,8 @@ config.yaml
 cert.pem
 key.pem
 *.log
+node_modules/
+web/panel/dist/
+*.tsbuildinfo
+web/panel/vite.config.js
+web/panel/vite.config.d.ts

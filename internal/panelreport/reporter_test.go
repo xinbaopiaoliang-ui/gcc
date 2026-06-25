@@ -19,6 +19,12 @@ func TestBuildPayloadIncludesNodeAndVersion(t *testing.T) {
 	}
 	cfg.Server.Listen = ":5555"
 	cfg.Server.ALPN = "gaccel/1"
+	cfg.RoutePolicies = config.RoutePoliciesConfig{
+		Revision: "20260616.1",
+		Policies: []config.RoutePolicyConfig{
+			{PolicyID: "steam-web-v1", GameID: "steam"},
+		},
+	}
 
 	now := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
 	payload := BuildPayload(cfg, metrics.Snapshot{ActiveQUICConnections: 3}, "0.3.2-test", now)
@@ -34,6 +40,12 @@ func TestBuildPayloadIncludesNodeAndVersion(t *testing.T) {
 	}
 	if payload.Metrics.ActiveQUICConnections != 3 {
 		t.Fatalf("ActiveQUICConnections = %d, want 3", payload.Metrics.ActiveQUICConnections)
+	}
+	if payload.RoutePolicies.Revision != "20260616.1" {
+		t.Fatalf("RoutePolicies.Revision = %q, want 20260616.1", payload.RoutePolicies.Revision)
+	}
+	if payload.RoutePolicies.PolicyCount != 1 {
+		t.Fatalf("RoutePolicies.PolicyCount = %d, want 1", payload.RoutePolicies.PolicyCount)
 	}
 	if !payload.Timestamp.Equal(now) {
 		t.Fatalf("Timestamp = %s, want %s", payload.Timestamp, now)

@@ -25,6 +25,8 @@ limits:
   max_quic_connections: 50000
   max_user_connections: 8
   max_flows_per_conn: 256
+  heartbeat_interval: "15s"
+  session_disconnect_timeout: "45s"
   quic_idle_timeout: "60s"
   udp_idle_timeout: "60s"
   tcp_idle_timeout: "10m"
@@ -50,6 +52,158 @@ security:
     - "3306"
     - "5432"
     - "6379"
+
+route_policies:
+  revision: "20260616.1"
+  policies:
+    - policy_id: "steam-web-v1"
+      game_id: "steam"
+      name: "Steam store/community TCP"
+      allow_tcp: true
+      allow_udp: false
+      rules:
+        - rule_id: "steam-store-tcp-443"
+          network: "tcp"
+          target_type: "domain"
+          target_value: "store.steampowered.com"
+          port_start: 443
+          port_end: 443
+          action: "quic_relay"
+          priority: 10
+        - rule_id: "steam-community-tcp-443"
+          network: "tcp"
+          target_type: "domain"
+          target_value: "steamcommunity.com"
+          port_start: 443
+          port_end: 443
+          action: "quic_relay"
+          priority: 10
+        - rule_id: "steamcommunity-sub-tcp-443"
+          network: "tcp"
+          target_type: "domain_suffix"
+          target_value: ".steamcommunity.com"
+          port_start: 443
+          port_end: 443
+          action: "quic_relay"
+          priority: 20
+        - rule_id: "steampowered-sub-tcp-443"
+          network: "tcp"
+          target_type: "domain_suffix"
+          target_value: ".steampowered.com"
+          port_start: 443
+          port_end: 443
+          action: "quic_relay"
+          priority: 20
+        - rule_id: "steamstatic-sub-tcp-443"
+          network: "tcp"
+          target_type: "domain_suffix"
+          target_value: ".steamstatic.com"
+          port_start: 443
+          port_end: 443
+          action: "quic_relay"
+          priority: 20
+        - rule_id: "steamcontent-sub-tcp-443"
+          network: "tcp"
+          target_type: "domain_suffix"
+          target_value: ".steamcontent.com"
+          port_start: 443
+          port_end: 443
+          action: "quic_relay"
+          priority: 20
+        - rule_id: "steamusercontent-sub-tcp-443"
+          network: "tcp"
+          target_type: "domain_suffix"
+          target_value: ".steamusercontent.com"
+          port_start: 443
+          port_end: 443
+          action: "quic_relay"
+          priority: 20
+        - rule_id: "steam-chat-sub-tcp-443"
+          network: "tcp"
+          target_type: "domain_suffix"
+          target_value: ".steam-chat.com"
+          port_start: 443
+          port_end: 443
+          action: "quic_relay"
+          priority: 20
+        - rule_id: "steamserver-sub-tcp-443"
+          network: "tcp"
+          target_type: "domain_suffix"
+          target_value: ".steamserver.net"
+          port_start: 443
+          port_end: 443
+          action: "quic_relay"
+          priority: 20
+        - rule_id: "steamserver-cmp-tcp-27014-27050"
+          network: "tcp"
+          target_type: "domain_suffix"
+          target_value: ".steamserver.net"
+          port_start: 27014
+          port_end: 27050
+          action: "quic_relay"
+          priority: 20
+        - rule_id: "steamgames-sub-tcp-443"
+          network: "tcp"
+          target_type: "domain_suffix"
+          target_value: ".steamgames.com"
+          port_start: 443
+          port_end: 443
+          action: "quic_relay"
+          priority: 20
+        - rule_id: "steam-api-sub-tcp-443"
+          network: "tcp"
+          target_type: "domain_suffix"
+          target_value: ".steam-api.com"
+          port_start: 443
+          port_end: 443
+          action: "quic_relay"
+          priority: 20
+        - rule_id: "valvesoftware-sub-tcp-443"
+          network: "tcp"
+          target_type: "domain_suffix"
+          target_value: ".valvesoftware.com"
+          port_start: 443
+          port_end: 443
+          action: "quic_relay"
+          priority: 20
+        - rule_id: "akamaihd-sub-tcp-443"
+          network: "tcp"
+          target_type: "domain_suffix"
+          target_value: ".akamaihd.net"
+          port_start: 443
+          port_end: 443
+          action: "quic_relay"
+          priority: 20
+        - rule_id: "fastly-sub-tcp-443"
+          network: "tcp"
+          target_type: "domain_suffix"
+          target_value: ".fastly.net"
+          port_start: 443
+          port_end: 443
+          action: "quic_relay"
+          priority: 20
+    - policy_id: "example-game-realtime-v1"
+      game_id: "example_game"
+      name: "Example game realtime UDP/TCP"
+      allow_tcp: true
+      allow_udp: true
+      rules:
+        - rule_id: "example-game-udp-15555"
+          network: "udp"
+          target_type: "ip"
+          target_value: "103.201.131.99"
+          port_start: 15555
+          port_end: 15555
+          action: "quic_relay"
+          priority: 10
+        - rule_id: "example-game-tcp-443"
+          network: "tcp"
+          target_type: "domain_suffix"
+          target_value: ".example-game.com"
+          port_start: 443
+          port_end: 443
+          action: "quic_relay"
+          priority: 20
 
 panel:
   report_url: ""

@@ -96,7 +96,11 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 			"listen": cfg.Server.Listen,
 			"alpn":   cfg.Server.ALPN,
 		},
-		"node":    cfg.Node,
+		"node": cfg.Node,
+		"route_policies": map[string]any{
+			"revision":     cfg.RoutePolicies.Revision,
+			"policy_count": len(cfg.RoutePolicies.Policies),
+		},
 		"metrics": s.collector.Snapshot(),
 	}
 	if s.commandResults != nil {

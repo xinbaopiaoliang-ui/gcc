@@ -104,6 +104,75 @@ func TestApplyPackageRejectsInvalidConfigAndKeepsCurrent(t *testing.T) {
 	}
 }
 
+func TestApplyRoutePoliciesWritesOnlyPolicyBlock(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	oldData := testConfigData("node-old")
+	if err := os.WriteFile(path, oldData, 0o640); err != nil {
+		t.Fatal(err)
+	}
+
+	manager, err := NewManager(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policyData := []byte(`route_policies:
+  revision: "r2"
+  policies:
+    - policy_id: "steam-web-v1"
+      game_id: "steam"
+      rules:
+        - rule_id: "steam-store-tcp-443"
+          network: "tcp"
+          target_type: "domain"
+          target_value: "store.steampowered.com"
+          port_start: 443
+          port_end: 443
+          action: "quic_relay"
+`)
+	result, err := manager.ApplyRoutePolicies(policyData, testSHA256(policyData))
+	if err != nil {
+		t.Fatalf("ApplyRoutePolicies returned error: %v", err)
+	}
+	if result.Config.Node.ID != "node-old" {
+		t.Fatalf("node id = %q, want node-old", result.Config.Node.ID)
+	}
+	if result.Config.RoutePolicies.Revision != "r2" {
+		t.Fatalf("route policy revision = %q, want r2", result.Config.RoutePolicies.Revision)
+	}
+	written, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(written), `policy_id: "steam-web-v1"`) {
+		t.Fatalf("written config missing policy: %s", written)
+	}
+	if !strings.Contains(string(written), `id: "node-old"`) {
+		t.Fatalf("written config lost node data: %s", written)
+	}
+}
+
+func TestApplyRoutePoliciesRejectsHashMismatch(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	oldData := testConfigData("node-old")
+	if err := os.WriteFile(path, oldData, 0o640); err != nil {
+		t.Fatal(err)
+	}
+
+	manager, err := NewManager(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policyData := []byte("revision: r2\npolicies: []\n")
+	if _, err := manager.ApplyRoutePolicies(policyData, strings.Repeat("0", 64)); err == nil {
+		t.Fatal("ApplyRoutePolicies returned nil for hash mismatch")
+	}
+	if manager.Current().RoutePolicies.Revision != "" {
+		t.Fatalf("route policy revision changed to %q", manager.Current().RoutePolicies.Revision)
+	}
+}
+
 func testConfigData(nodeID string) []byte {
 	return []byte(`server:
   listen: ":5555"

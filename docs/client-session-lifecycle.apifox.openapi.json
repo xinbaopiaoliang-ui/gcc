@@ -1,0 +1,453 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "gaccel 客户端会话查询 API",
+    "version": "0.6.20",
+    "description": "用于查询用户连接节点、认证成功、断开时间、断开原因和会话流量。"
+  },
+  "servers": [
+    {
+      "url": "http://103.201.131.99:8091",
+      "description": "控制面板 Go API"
+    }
+  ],
+  "security": [],
+  "paths": {
+    "/api/panel/client-sessions": {
+      "get": {
+        "summary": "面板查询客户端会话",
+        "description": "给控制面板前端使用，使用面板登录后的 Bearer JWT。",
+        "security": [
+          {
+            "panelJwt": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/NodeID"
+          },
+          {
+            "$ref": "#/components/parameters/UserID"
+          },
+          {
+            "$ref": "#/components/parameters/DeviceID"
+          },
+          {
+            "$ref": "#/components/parameters/Status"
+          },
+          {
+            "$ref": "#/components/parameters/CloseReason"
+          },
+          {
+            "$ref": "#/components/parameters/WindowHours"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/ClientSessionList"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/backend/client-sessions": {
+      "get": {
+        "summary": "业务后台查询客户端会话",
+        "description": "给业务后台使用，使用 panel.yaml 中配置的 backend_api_key。",
+        "security": [
+          {
+            "backendApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/NodeID"
+          },
+          {
+            "$ref": "#/components/parameters/UserID"
+          },
+          {
+            "$ref": "#/components/parameters/DeviceID"
+          },
+          {
+            "$ref": "#/components/parameters/Status"
+          },
+          {
+            "$ref": "#/components/parameters/CloseReason"
+          },
+          {
+            "$ref": "#/components/parameters/WindowHours"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/ClientSessionList"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "panelJwt": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "控制面板登录接口返回的 access_token。"
+      },
+      "backendApiKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "panel.yaml security.backend_api_keys 中配置的业务后台 API Key。"
+      }
+    },
+    "parameters": {
+      "NodeID": {
+        "name": "node_id",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string"
+        },
+        "description": "按节点 ID 过滤。"
+      },
+      "UserID": {
+        "name": "user_id",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string"
+        },
+        "description": "按业务用户 ID 过滤。"
+      },
+      "DeviceID": {
+        "name": "device_id",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string"
+        },
+        "description": "按客户端设备 ID 过滤。"
+      },
+      "Status": {
+        "name": "status",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": ["online", "closed"]
+        },
+        "description": "会话状态。"
+      },
+      "CloseReason": {
+        "name": "close_reason",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": ["client_shutdown", "heartbeat_timeout", "quic_idle_timeout", "network_lost", "node_shutdown"]
+        },
+        "description": "断开原因。"
+      },
+      "WindowHours": {
+        "name": "window_hours",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "default": 24,
+          "minimum": 1,
+          "maximum": 2160
+        },
+        "description": "查询最近多少小时。"
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "default": 50,
+          "minimum": 1,
+          "maximum": 500
+        },
+        "description": "分页数量。"
+      },
+      "Offset": {
+        "name": "offset",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "default": 0,
+          "minimum": 0
+        },
+        "description": "分页偏移。"
+      }
+    },
+    "responses": {
+      "ClientSessionList": {
+        "description": "客户端会话列表",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ClientSessionListResponse"
+            }
+          }
+        }
+      },
+      "Error": {
+        "description": "错误响应",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ClientSessionListResponse": {
+        "type": "object",
+        "required": ["status", "sessions", "overview", "limit", "offset", "count"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok"
+          },
+          "sessions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientSession"
+            }
+          },
+          "overview": {
+            "$ref": "#/components/schemas/ClientSessionOverview"
+          },
+          "limit": {
+            "type": "integer",
+            "example": 50
+          },
+          "offset": {
+            "type": "integer",
+            "example": 0
+          },
+          "count": {
+            "type": "integer",
+            "example": 1
+          }
+        }
+      },
+      "ClientSessionOverview": {
+        "type": "object",
+        "properties": {
+          "online_sessions": {
+            "type": "integer",
+            "example": 3
+          },
+          "closed_sessions": {
+            "type": "integer",
+            "example": 18
+          },
+          "timeout_sessions": {
+            "type": "integer",
+            "example": 2
+          },
+          "total_sessions": {
+            "type": "integer",
+            "example": 21
+          },
+          "total_duration_seconds": {
+            "type": "integer",
+            "example": 3600
+          },
+          "udp_client_to_target_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "udp_target_to_client_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tcp_client_to_target_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tcp_target_to_client_bytes": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ClientSession": {
+        "type": "object",
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "example": "node-hk-01"
+          },
+          "session_id": {
+            "type": "string",
+            "example": "26"
+          },
+          "remote_addr": {
+            "type": "string",
+            "example": "123.234.174.226:52616"
+          },
+          "user_id": {
+            "type": "string",
+            "example": "user-1"
+          },
+          "device_id": {
+            "type": "string",
+            "example": "win-device-1"
+          },
+          "client_id": {
+            "type": "string",
+            "example": "velox-gaccel"
+          },
+          "client_version": {
+            "type": "string",
+            "example": "0.1.0"
+          },
+          "client_platform": {
+            "type": "string",
+            "example": "windows/x86_64"
+          },
+          "protocol_version": {
+            "type": "integer",
+            "example": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": ["online", "closed"]
+          },
+          "close_reason": {
+            "type": "string",
+            "example": "heartbeat_timeout"
+          },
+          "close_source": {
+            "type": "string",
+            "example": "node"
+          },
+          "game_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "policy_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "config_revision": {
+            "type": "string",
+            "example": "20260623.1"
+          },
+          "connected_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "authenticated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_ping_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ended_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "duration_seconds": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "max_connections": {
+            "type": "integer"
+          },
+          "rate_limit_mbps": {
+            "type": "integer"
+          },
+          "allow_tcp": {
+            "type": "boolean"
+          },
+          "allow_udp": {
+            "type": "boolean"
+          },
+          "udp_flows": {
+            "type": "integer"
+          },
+          "tcp_flows": {
+            "type": "integer"
+          },
+          "udp_client_to_target_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "udp_target_to_client_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tcp_client_to_target_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tcp_target_to_client_bytes": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "example": "store_error"
+              },
+              "message": {
+                "type": "string",
+                "example": "list client sessions failed"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

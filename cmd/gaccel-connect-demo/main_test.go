@@ -21,7 +21,7 @@ func TestParseConnectTarget(t *testing.T) {
 }
 
 func TestAllowRules(t *testing.T) {
-	rules, err := parseAllowRules("steamcommunity.com,.steamcommunity.com,steampowered.com,.steampowered.com", "443")
+	rules, err := parseAllowRules("steamcommunity.com,.steamcommunity.com,steampowered.com,.steampowered.com,steamserver.net,.steamserver.net", "443,27014-27050")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,6 +34,8 @@ func TestAllowRules(t *testing.T) {
 		{host: "steamcommunity.com", port: 443, want: true},
 		{host: "forums.steamcommunity.com", port: 443, want: true},
 		{host: "store.steampowered.com", port: 443, want: true},
+		{host: "cmp2-tyo3.steamserver.net", port: 27020, want: true},
+		{host: "cmp2-tyo3.steamserver.net", port: 27051, want: false},
 		{host: "example.com", port: 443, want: false},
 		{host: "steamcommunity.com", port: 80, want: false},
 		{host: "badsteamcommunity.com", port: 443, want: false},

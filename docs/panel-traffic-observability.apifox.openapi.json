@@ -1,0 +1,229 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "GACCEL Panel Traffic Observability API",
+    "version": "0.6.15",
+    "description": "Control-panel JWT API for traffic and integration observability. This endpoint is for logged-in panel users and does not use backend_api_key."
+  },
+  "servers": [
+    {
+      "url": "http://103.201.131.99:8091",
+      "description": "gaccel-panel Go API"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Panel - Observability",
+      "description": "Traffic, flow events and policy consistency for client-node integration troubleshooting."
+    }
+  ],
+  "paths": {
+    "/api/panel/traffic/overview": {
+      "get": {
+        "tags": ["Panel - Observability"],
+        "summary": "Traffic overview",
+        "description": "Aggregates recent node reports into traffic totals, node ranking, user ranking, flow event ranking and policy consistency. Requires panel login JWT.",
+        "operationId": "panelTrafficOverview",
+        "security": [
+          {
+            "PanelBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "window_hours",
+            "in": "query",
+            "description": "Aggregation window in hours. Recommended values: 1, 6, 24, 72, 168.",
+            "schema": {
+              "type": "integer",
+              "default": 24,
+              "minimum": 1,
+              "maximum": 168
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum rows returned in rankings.",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Traffic overview.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrafficOverviewResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Panel login token is missing or invalid."
+          },
+          "500": {
+            "description": "Panel database query failed."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "PanelBearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "TrafficOverviewResponse": {
+        "type": "object",
+        "required": ["status", "traffic"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok"
+          },
+          "traffic": {
+            "$ref": "#/components/schemas/TrafficOverview"
+          },
+          "overview": {
+            "$ref": "#/components/schemas/TrafficOverview"
+          }
+        }
+      },
+      "TrafficOverview": {
+        "type": "object",
+        "properties": {
+          "window_seconds": { "type": "integer", "example": 86400 },
+          "sample_mode": {
+            "type": "string",
+            "enum": ["window_delta", "latest_cumulative"],
+            "example": "window_delta"
+          },
+          "totals": { "$ref": "#/components/schemas/TrafficTotals" },
+          "nodes": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TrafficNodeStats" }
+          },
+          "users": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TrafficUserStats" }
+          },
+          "flow_events": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TrafficFlowEventStats" }
+          },
+          "policy_events": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TrafficPolicyEventStats" }
+          },
+          "policy_consistency": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TrafficPolicyConsistency" }
+          },
+          "recommendations": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      },
+      "TrafficTotals": {
+        "type": "object",
+        "properties": {
+          "node_count": { "type": "integer" },
+          "online_node_count": { "type": "integer" },
+          "report_node_count": { "type": "integer" },
+          "active_quic_connections": { "type": "integer" },
+          "active_tcp_flows": { "type": "integer" },
+          "active_udp_flows": { "type": "integer" },
+          "total_bytes": { "type": "integer", "format": "int64" },
+          "flow_open_errors": { "type": "integer", "format": "int64" },
+          "flow_close_events": { "type": "integer", "format": "int64" },
+          "policy_drift_nodes": { "type": "integer" }
+        }
+      },
+      "TrafficByteBreakdown": {
+        "type": "object",
+        "properties": {
+          "tcp_client_to_target_bytes": { "type": "integer", "format": "int64" },
+          "tcp_target_to_client_bytes": { "type": "integer", "format": "int64" },
+          "udp_client_to_target_bytes": { "type": "integer", "format": "int64" },
+          "udp_target_to_client_bytes": { "type": "integer", "format": "int64" },
+          "total_bytes": { "type": "integer", "format": "int64" }
+        }
+      },
+      "TrafficNodeStats": {
+        "type": "object",
+        "properties": {
+          "node_id": { "type": "string" },
+          "name": { "type": "string" },
+          "region": { "type": "string" },
+          "endpoint": { "type": "string" },
+          "status": { "type": "string" },
+          "policy_state": { "type": "string" },
+          "report_count": { "type": "integer" },
+          "report_age_seconds": { "type": "integer", "format": "int64" },
+          "active_quic_connections": { "type": "integer", "format": "int64" },
+          "active_tcp_flows": { "type": "integer", "format": "int64" },
+          "active_udp_flows": { "type": "integer", "format": "int64" },
+          "traffic": { "$ref": "#/components/schemas/TrafficByteBreakdown" }
+        }
+      },
+      "TrafficUserStats": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "string" },
+          "active_connections": { "type": "integer", "format": "int64" },
+          "traffic": { "$ref": "#/components/schemas/TrafficByteBreakdown" },
+          "node_count": { "type": "integer" }
+        }
+      },
+      "TrafficFlowEventStats": {
+        "type": "object",
+        "properties": {
+          "network": { "type": "string", "example": "tcp" },
+          "event": { "type": "string", "example": "open" },
+          "reason": { "type": "string", "example": "success" },
+          "game_id": { "type": "string", "example": "steam" },
+          "policy_id": { "type": "string", "example": "steam-web" },
+          "count": { "type": "integer", "format": "int64" }
+        }
+      },
+      "TrafficPolicyEventStats": {
+        "type": "object",
+        "properties": {
+          "game_id": { "type": "string" },
+          "policy_id": { "type": "string" },
+          "network": { "type": "string" },
+          "open": { "type": "integer", "format": "int64" },
+          "close": { "type": "integer", "format": "int64" },
+          "error": { "type": "integer", "format": "int64" },
+          "total": { "type": "integer", "format": "int64" }
+        }
+      },
+      "TrafficPolicyConsistency": {
+        "type": "object",
+        "properties": {
+          "node_id": { "type": "string" },
+          "name": { "type": "string" },
+          "current_policy_revision": { "type": "string" },
+          "desired_policy_revision": { "type": "string" },
+          "state": {
+            "type": "string",
+            "enum": ["synced", "pending", "waiting_report", "not_set"]
+          },
+          "report_age_seconds": { "type": "integer", "format": "int64" },
+          "last_error": { "type": "string" }
+        }
+      }
+    }
+  }
+}

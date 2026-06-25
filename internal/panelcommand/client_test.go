@@ -100,6 +100,66 @@ func TestExecuteApplyConfig(t *testing.T) {
 	}
 }
 
+func TestExecuteApplyPolicy(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	oldData := panelCommandTestConfig("node-old")
+	if err := os.WriteFile(path, oldData, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	manager, err := config.NewManager(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := New(manager, nilLogger(), "test")
+	client.now = func() time.Time { return time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC) }
+
+	policyYAML := `route_policies:
+  revision: "r-policy"
+  policies:
+    - policy_id: "steam-web-v1"
+      game_id: "steam"
+      rules:
+        - rule_id: "steam-store-tcp-443"
+          network: "tcp"
+          target_type: "domain"
+          target_value: "store.steampowered.com"
+          port_start: 443
+          port_end: 443
+          action: "quic_relay"
+`
+	payload, err := json.Marshal(ApplyPolicyPayload{
+		SHA256:            panelCommandSHA256([]byte(policyYAML)),
+		RoutePoliciesYAML: policyYAML,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := client.execute(context.Background(), manager.Current(), Command{
+		ID:        "cmd-apply-policy-1",
+		Type:      CommandApplyPolicy,
+		IssuedAt:  client.now(),
+		ExpiresAt: client.now().Add(time.Minute),
+		Payload:   payload,
+	})
+	if !result.OK {
+		t.Fatalf("apply_policy failed: %s", result.Error)
+	}
+	if manager.Current().Node.ID != "node-old" {
+		t.Fatalf("node id = %q, want node-old", manager.Current().Node.ID)
+	}
+	if manager.Current().RoutePolicies.Revision != "r-policy" {
+		t.Fatalf("route policy revision = %q, want r-policy", manager.Current().RoutePolicies.Revision)
+	}
+	details, ok := result.Details.(map[string]string)
+	if !ok {
+		t.Fatalf("details = %#v, want map[string]string", result.Details)
+	}
+	if details["revision"] != "r-policy" {
+		t.Fatalf("details revision = %q, want r-policy", details["revision"])
+	}
+}
+
 func TestExecuteStageUpgrade(t *testing.T) {
 	cfg := config.Default()
 	cfg.Upgrade.StageDir = t.TempDir()

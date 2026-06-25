@@ -138,7 +138,7 @@ token 使用 HS256，常用 claims：
 生成示例：
 
 ```bash
-gaccel-token -secret "replace-with-a-long-random-secret" -user user-1 -device device-1 -ttl 15m
+gaccel-token -secret "replace-with-a-long-random-secret" -user user-1 -device device-1 -ttl 15m -game-ids steam -policy-ids steam-web-v1 -config-revision 20260616.1
 ```
 
 ## PING
@@ -303,7 +303,7 @@ GET /debug/pprof/
 
 `/sessions` 会输出在线连接、flow、user_id、device_id、client_id、client_version、client_platform、protocol_version、last_ping_at、connected_duration_seconds、有效连接上限、有效限速和 TCP/UDP 权限。
 
-`/panel/commands` 会输出最近的面板命令执行结果，便于确认 `config_reload`、`apply_config` 和 `stage_upgrade` 是否成功：
+`/panel/commands` 会输出最近的面板命令执行结果，便于确认 `config_reload`、`apply_config`、`apply_policy` 和 `stage_upgrade` 是否成功：
 
 ```json
 {

@@ -32,3 +32,75 @@ func TestNormalizeNodeMetadata(t *testing.T) {
 		t.Fatal("empty label value was not removed")
 	}
 }
+
+func TestLoadDataAcceptsRoutePolicies(t *testing.T) {
+	data := []byte(`server:
+  listen: ":5555"
+  alpn: "gaccel/1"
+  cert_file: "/tmp/cert.pem"
+  key_file: "/tmp/key.pem"
+
+auth:
+  mode: "dev"
+  dev_tokens:
+    - "dev-token"
+
+route_policies:
+  revision: "r1"
+  policies:
+    - policy_id: "steam-web-v1"
+      game_id: "steam"
+      allow_tcp: true
+      allow_udp: false
+      rules:
+        - rule_id: "steam-store-tcp-443"
+          network: "tcp"
+          target_type: "domain"
+          target_value: "store.steampowered.com"
+          port_start: 443
+          port_end: 443
+          action: "quic_relay"
+`)
+
+	cfg, err := LoadData(data)
+	if err != nil {
+		t.Fatalf("LoadData returned error: %v", err)
+	}
+	if cfg.RoutePolicies.Revision != "r1" {
+		t.Fatalf("RoutePolicies.Revision = %q, want r1", cfg.RoutePolicies.Revision)
+	}
+	if len(cfg.RoutePolicies.Policies) != 1 {
+		t.Fatalf("policies = %d, want 1", len(cfg.RoutePolicies.Policies))
+	}
+}
+
+func TestLoadDataRejectsInvalidRoutePolicyRule(t *testing.T) {
+	data := []byte(`server:
+  listen: ":5555"
+  alpn: "gaccel/1"
+  cert_file: "/tmp/cert.pem"
+  key_file: "/tmp/key.pem"
+
+auth:
+  mode: "dev"
+  dev_tokens:
+    - "dev-token"
+
+route_policies:
+  policies:
+    - policy_id: "bad-policy"
+      game_id: "bad"
+      rules:
+        - rule_id: "bad-rule"
+          network: "udp"
+          target_type: "cidr"
+          target_value: "not-cidr"
+          port_start: 1
+          port_end: 1
+          action: "quic_relay"
+`)
+
+	if _, err := LoadData(data); err == nil {
+		t.Fatal("LoadData returned nil for invalid route policy")
+	}
+}

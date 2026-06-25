@@ -1,0 +1,1341 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "GACCEL Business Backend API",
+    "version": "0.6.10",
+    "description": "Import this file into Apifox for business-backend integration. Endpoints under /api/backend/* are provided by gaccel-panel. The /api/client/accelerate/token endpoint is a suggested business-side API and is not implemented by gaccel-panel."
+  },
+  "servers": [
+    {
+      "url": "http://103.201.131.99:8091",
+      "description": "gaccel-panel Go API"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Backend - System",
+      "description": "Health and configuration checks for business integration."
+    },
+    {
+      "name": "Backend - Nodes",
+      "description": "Create, update, delete and sync node records."
+    },
+    {
+      "name": "Backend - Policies",
+      "description": "Validate, save and assign route policy revisions."
+    },
+    {
+      "name": "Backend - Token Defaults",
+      "description": "Read token default plan settings maintained by the panel."
+    },
+    {
+      "name": "Business API Suggestion",
+      "description": "Suggested API that should be implemented by the business backend for clients."
+    }
+  ],
+  "security": [
+    {
+      "BackendBearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/backend/system/check": {
+      "get": {
+        "tags": [
+          "Backend - System"
+        ],
+        "summary": "System self check",
+        "description": "Checks panel database, required tables, security keys, CORS and runtime directories. No secret plaintext is returned.",
+        "operationId": "backendSystemCheck",
+        "responses": {
+          "200": {
+            "description": "Self-check result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemCheckResponse"
+                },
+                "example": {
+                  "status": "warning",
+                  "version": "0.6.10",
+                  "config": {
+                    "listen": "127.0.0.1:18091",
+                    "public_base_url": "http://103.201.131.99:8091",
+                    "database_driver": "mysql",
+                    "backend_api_key_count": 1,
+                    "session_ttl_seconds": 43200,
+                    "cors_allowed_origins": [
+                      "http://103.201.131.99:9788"
+                    ]
+                  },
+                  "summary": {
+                    "ok": 11,
+                    "warning": 1,
+                    "error": 0,
+                    "total": 12
+                  },
+                  "checks": [
+                    {
+                      "key": "database.schema",
+                      "label": "database schema",
+                      "status": "ok",
+                      "message": "required tables are ready"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/backend/token-defaults": {
+      "get": {
+        "tags": [
+          "Backend - Token Defaults"
+        ],
+        "summary": "Get client token default plans",
+        "description": "Business backend can read these defaults before issuing short-lived client JWTs. The panel only stores defaults; the business backend still signs the client token with the node hmac_secret.",
+        "operationId": "getBackendTokenDefaults",
+        "responses": {
+          "200": {
+            "description": "Token default plans.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenDefaultsResponse"
+                },
+                "example": {
+                  "token_defaults": {
+                    "node_hard_limit": 512,
+                    "plans": [
+                      {
+                        "plan_id": "trial",
+                        "name": "trial",
+                        "max_connections": 32,
+                        "rate_limit_mbps": 50,
+                        "allow_tcp": true,
+                        "allow_udp": true,
+                        "description": "Short test plan.",
+                        "sort_order": 10
+                      },
+                      {
+                        "plan_id": "standard",
+                        "name": "standard",
+                        "max_connections": 64,
+                        "rate_limit_mbps": 100,
+                        "allow_tcp": true,
+                        "allow_udp": true,
+                        "description": "Default game acceleration plan.",
+                        "sort_order": 20
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/backend/nodes": {
+      "post": {
+        "tags": [
+          "Backend - Nodes"
+        ],
+        "summary": "Create node",
+        "description": "Creates a node in the panel database. Send hmac_secret on first sync. The panel stores an encrypted copy and never returns plaintext.",
+        "operationId": "createBackendNode",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNodeRequest"
+              },
+              "example": {
+                "node_id": "hk-01",
+                "name": "Hong Kong 01",
+                "region": "hk",
+                "country": "HK",
+                "provider": "aliyun",
+                "line_type": "premium",
+                "endpoint_host": "47.83.160.126",
+                "endpoint_port": 6666,
+                "alpn": "gaccel/1",
+                "admin_host": "47.83.160.126",
+                "admin_port": 5557,
+                "ssh_host": "47.83.160.126",
+                "ssh_port": 22,
+                "ssh_user": "root",
+                "allow_tcp": true,
+                "allow_udp": true,
+                "hmac_secret": "replace-with-per-node-random-secret",
+                "tags": [
+                  "steam",
+                  "quic"
+                ],
+                "labels": {
+                  "line": "premium"
+                },
+                "status": "new",
+                "desired_version": "",
+                "desired_policy_revision": ""
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/NodeSaved"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/backend/nodes/{node_id}": {
+      "put": {
+        "tags": [
+          "Backend - Nodes"
+        ],
+        "summary": "Update node",
+        "description": "Updates one node by node_id. If hmac_secret is omitted, the old secret is kept. If hmac_secret is sent, the encrypted copy is replaced.",
+        "operationId": "updateBackendNode",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/NodeID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNodeRequest"
+              },
+              "example": {
+                "name": "Hong Kong 01",
+                "region": "hk",
+                "country": "HK",
+                "provider": "aliyun",
+                "line_type": "premium",
+                "endpoint_host": "47.83.160.126",
+                "endpoint_port": 6666,
+                "alpn": "gaccel/1",
+                "admin_host": "47.83.160.126",
+                "admin_port": 5557,
+                "ssh_host": "47.83.160.126",
+                "ssh_port": 22,
+                "ssh_user": "root",
+                "allow_tcp": true,
+                "allow_udp": true,
+                "tags": [],
+                "labels": {},
+                "status": "online",
+                "desired_version": "",
+                "desired_policy_revision": ""
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/NodeSaved"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Backend - Nodes"
+        ],
+        "summary": "Delete node",
+        "description": "Deletes the node record from the panel database. This does not uninstall the node service from the server.",
+        "operationId": "deleteBackendNode",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/NodeID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OKResponse"
+                },
+                "example": {
+                  "status": "ok"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/backend/policy-revisions/validate": {
+      "post": {
+        "tags": [
+          "Backend - Policies"
+        ],
+        "summary": "Validate route policy revision",
+        "description": "Validates route_policies YAML before saving. This endpoint does not write to the database. If valid=false, do not save or assign the policy.",
+        "operationId": "validateBackendPolicyRevision",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyValidationRequest"
+              },
+              "example": {
+                "revision": "20260622.1",
+                "sha256": "",
+                "base_revision": "20260621.1",
+                "route_policies_yaml": "route_policies:\n  revision: \"20260622.1\"\n  policies: []\n"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Validation result. Policy semantic errors are returned with valid=false.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyValidationResponse"
+                },
+                "example": {
+                  "valid": true,
+                  "sha256": "7f83b1657ff1fc53b92dc18148a1d65dfa135f2f",
+                  "errors": [],
+                  "warnings": [
+                    "route_policies.policies is empty; node will not enforce per-game route policy matching"
+                  ],
+                  "summary": {
+                    "revision": "20260622.1",
+                    "policy_count": 0,
+                    "rule_count": 0,
+                    "relay_rule_count": 0,
+                    "disabled_rules": 0,
+                    "games": [],
+                    "policies": [],
+                    "networks": [],
+                    "target_types": []
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/backend/policy-revisions": {
+      "post": {
+        "tags": [
+          "Backend - Policies"
+        ],
+        "summary": "Save route policy revision",
+        "description": "Saves a validated route_policies YAML revision. sha256 is optional; if omitted, the panel calculates it from the YAML content.",
+        "operationId": "createBackendPolicyRevision",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyRevisionRequest"
+              },
+              "example": {
+                "revision": "20260622.1",
+                "sha256": "",
+                "route_policies_yaml": "route_policies:\n  revision: \"20260622.1\"\n  policies: []\n"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved policy revision.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyRevisionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/backend/nodes/{node_id}/desired-policy": {
+      "post": {
+        "tags": [
+          "Backend - Policies"
+        ],
+        "summary": "Assign desired policy to node",
+        "description": "Sets a policy revision as the desired policy for a node. When create_task=true, an apply_policy task is queued for the node.",
+        "operationId": "setBackendNodeDesiredPolicy",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/NodeID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesiredPolicyRequest"
+              },
+              "example": {
+                "revision": "20260622.1",
+                "create_task": true,
+                "priority": 100
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Desired policy and optional task.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesiredPolicyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/backend/nodes/{node_id}/sync-status": {
+      "get": {
+        "tags": [
+          "Backend - Policies"
+        ],
+        "summary": "Get node sync status",
+        "description": "Returns version, policy, HMAC secret, deploy readiness and task queue status for one node. Use policy_state=synced as the final confirmation that a policy reached the node.",
+        "operationId": "getBackendNodeSyncStatus",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/NodeID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Node sync status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeSyncStatusResponse"
+                },
+                "example": {
+                  "sync_status": {
+                    "node_id": "hk-01",
+                    "version_state": "synced",
+                    "policy_state": "pending",
+                    "current_version": "0.3.3",
+                    "desired_version": "",
+                    "current_policy_revision": "20260621.1",
+                    "desired_policy_revision": "20260622.1",
+                    "hmac_secret_configured": true,
+                    "hmac_secret_source": "backend",
+                    "deploy_ready": true,
+                    "pending_tasks": 1,
+                    "running_tasks": 0,
+                    "failed_tasks": 0,
+                    "recommendations": [
+                      "policy is not applied yet; check apply_policy task logs or wait for the node to pull commands"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/client/accelerate/token": {
+      "post": {
+        "tags": [
+          "Business API Suggestion"
+        ],
+        "summary": "Issue client acceleration token",
+        "description": "Suggested business-backend API. This is not provided by gaccel-panel. Business backend should verify the user, choose node and game policy, read the node hmac_secret, then sign a short-lived JWT for the client.",
+        "operationId": "issueClientAccelerateTokenSuggested",
+        "security": [],
+        "servers": [
+          {
+            "url": "https://your-business-api.example.com",
+            "description": "Your own business backend"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientTokenRequest"
+              },
+              "example": {
+                "user_id": "user-10001",
+                "device_id": "win-device-01",
+                "node_id": "hk-01",
+                "game_id": "steam",
+                "plan_id": "standard"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token and node connection config returned to client.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientTokenResponse"
+                },
+                "example": {
+                  "node": {
+                    "node_id": "hk-01",
+                    "host": "47.83.160.126",
+                    "port": 6666,
+                    "alpn": "gaccel/1"
+                  },
+                  "token": "jwt-signed-by-node-hmac-secret",
+                  "token_type": "Bearer",
+                  "expires_at": "2026-06-22T15:30:00+08:00",
+                  "config_revision": "20260622.1",
+                  "game_ids": [
+                    "steam"
+                  ],
+                  "policy_ids": [
+                    "steam-web-v1"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BackendBearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "backend_api_key",
+        "description": "Use one backend_api_key configured in panel.yaml security.backend_api_keys. Do not use panel login JWT here."
+      }
+    },
+    "parameters": {
+      "NodeID": {
+        "name": "node_id",
+        "in": "path",
+        "required": true,
+        "description": "Business node id, for example hk-01 or 2.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "responses": {
+      "NodeSaved": {
+        "description": "Node saved.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/NodeResponse"
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "Bad request.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "error": {
+                "code": "bad_request",
+                "message": "invalid request body"
+              }
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Missing or invalid backend API key.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "error": {
+                "code": "unauthorized",
+                "message": "missing or invalid API key"
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "error": {
+                "code": "not_found",
+                "message": "node not found"
+              }
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "OKResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok"
+          }
+        }
+      },
+      "SystemCheckResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "warning",
+              "error"
+            ]
+          },
+          "version": {
+            "type": "string"
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "summary": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      },
+      "TokenDefaultsResponse": {
+        "type": "object",
+        "properties": {
+          "token_defaults": {
+            "type": "object",
+            "properties": {
+              "node_hard_limit": {
+                "type": "integer"
+              },
+              "plans": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/TokenDefaultPlan"
+                }
+              }
+            }
+          }
+        }
+      },
+      "TokenDefaultPlan": {
+        "type": "object",
+        "properties": {
+          "plan_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "max_connections": {
+            "type": "integer"
+          },
+          "rate_limit_mbps": {
+            "type": "integer"
+          },
+          "allow_tcp": {
+            "type": "boolean"
+          },
+          "allow_udp": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string"
+          },
+          "sort_order": {
+            "type": "integer"
+          }
+        }
+      },
+      "CreateNodeRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/NodeRequestBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "node_id",
+              "name",
+              "endpoint_host",
+              "endpoint_port"
+            ]
+          }
+        ]
+      },
+      "UpdateNodeRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/NodeRequestBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "name",
+              "endpoint_host",
+              "endpoint_port"
+            ]
+          }
+        ]
+      },
+      "NodeRequestBase": {
+        "type": "object",
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "description": "Business node id. On PUT it may be omitted; if sent, it must match the path node_id.",
+            "example": "hk-01"
+          },
+          "name": {
+            "type": "string",
+            "example": "Hong Kong 01"
+          },
+          "region": {
+            "type": "string",
+            "example": "hk"
+          },
+          "country": {
+            "type": "string",
+            "example": "HK"
+          },
+          "provider": {
+            "type": "string",
+            "example": "aliyun"
+          },
+          "line_type": {
+            "type": "string",
+            "example": "premium"
+          },
+          "endpoint_host": {
+            "type": "string",
+            "description": "Public host used by the client to connect to the node.",
+            "example": "47.83.160.126"
+          },
+          "endpoint_port": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535,
+            "example": 6666
+          },
+          "alpn": {
+            "type": "string",
+            "default": "gaccel/1",
+            "example": "gaccel/1"
+          },
+          "admin_host": {
+            "type": "string",
+            "description": "Node admin API host. Keep 127.0.0.1 if only local access is allowed; use a public/reverse-proxy host only when panel must check it remotely.",
+            "example": "47.83.160.126"
+          },
+          "admin_port": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535,
+            "default": 5557,
+            "example": 5557
+          },
+          "ssh_host": {
+            "type": "string",
+            "example": "47.83.160.126"
+          },
+          "ssh_port": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535,
+            "default": 22,
+            "example": 22
+          },
+          "ssh_user": {
+            "type": "string",
+            "default": "root",
+            "example": "root"
+          },
+          "allow_tcp": {
+            "type": "boolean",
+            "default": true
+          },
+          "allow_udp": {
+            "type": "boolean",
+            "default": true
+          },
+          "hmac_secret": {
+            "type": "string",
+            "description": "Per-node secret generated and stored by the business backend. The panel stores an encrypted copy and never returns plaintext. Do not send the panel login JWT as this value.",
+            "minLength": 16,
+            "writeOnly": true
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "labels": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "deploying",
+              "online",
+              "offline",
+              "error",
+              "disabled"
+            ],
+            "default": "new"
+          },
+          "desired_version": {
+            "type": "string"
+          },
+          "desired_policy_revision": {
+            "type": "string"
+          }
+        }
+      },
+      "NodeResponse": {
+        "type": "object",
+        "properties": {
+          "node": {
+            "$ref": "#/components/schemas/Node"
+          }
+        }
+      },
+      "Node": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "line_type": {
+            "type": "string"
+          },
+          "endpoint_host": {
+            "type": "string"
+          },
+          "endpoint_port": {
+            "type": "integer"
+          },
+          "alpn": {
+            "type": "string"
+          },
+          "admin_host": {
+            "type": "string"
+          },
+          "admin_port": {
+            "type": "integer"
+          },
+          "ssh_host": {
+            "type": "string"
+          },
+          "ssh_port": {
+            "type": "integer"
+          },
+          "ssh_user": {
+            "type": "string"
+          },
+          "allow_tcp": {
+            "type": "boolean"
+          },
+          "allow_udp": {
+            "type": "boolean"
+          },
+          "hmac_secret_configured": {
+            "type": "boolean"
+          },
+          "hmac_secret_source": {
+            "type": "string"
+          },
+          "hmac_secret_updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "labels": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string"
+          },
+          "current_version": {
+            "type": "string"
+          },
+          "desired_version": {
+            "type": "string"
+          },
+          "current_policy_revision": {
+            "type": "string"
+          },
+          "desired_policy_revision": {
+            "type": "string"
+          },
+          "last_report_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "last_error": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PolicyValidationRequest": {
+        "type": "object",
+        "required": [
+          "route_policies_yaml"
+        ],
+        "properties": {
+          "revision": {
+            "type": "string",
+            "example": "20260622.1"
+          },
+          "sha256": {
+            "type": "string",
+            "description": "Optional. If sent, it must match the YAML content."
+          },
+          "route_policies_yaml": {
+            "type": "string"
+          },
+          "base_revision": {
+            "type": "string",
+            "description": "Optional. Used to build a diff against a saved base revision."
+          },
+          "base_route_policies_yaml": {
+            "type": "string",
+            "description": "Optional. Direct base YAML for diff."
+          }
+        }
+      },
+      "PolicyValidationResponse": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "summary": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "diff": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "PolicyRevisionRequest": {
+        "type": "object",
+        "required": [
+          "revision",
+          "route_policies_yaml"
+        ],
+        "properties": {
+          "revision": {
+            "type": "string",
+            "example": "20260622.1"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "route_policies_yaml": {
+            "type": "string"
+          }
+        }
+      },
+      "PolicyRevisionResponse": {
+        "type": "object",
+        "properties": {
+          "policy_revision": {
+            "$ref": "#/components/schemas/PolicyRevision"
+          }
+        }
+      },
+      "PolicyRevision": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "route_policies_yaml": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "backend",
+              "manual"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DesiredPolicyRequest": {
+        "type": "object",
+        "required": [
+          "revision"
+        ],
+        "properties": {
+          "revision": {
+            "type": "string",
+            "example": "20260622.1"
+          },
+          "create_task": {
+            "type": "boolean",
+            "default": true
+          },
+          "priority": {
+            "type": "integer",
+            "default": 100
+          }
+        }
+      },
+      "DesiredPolicyResponse": {
+        "type": "object",
+        "properties": {
+          "node_policy_revision": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "task": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          }
+        }
+      },
+      "NodeSyncStatusResponse": {
+        "type": "object",
+        "properties": {
+          "sync_status": {
+            "$ref": "#/components/schemas/NodeSyncStatus"
+          }
+        }
+      },
+      "NodeSyncStatus": {
+        "type": "object",
+        "properties": {
+          "node_id": {
+            "type": "string"
+          },
+          "version_state": {
+            "type": "string",
+            "enum": [
+              "synced",
+              "pending",
+              "waiting_report",
+              "not_set",
+              "unknown"
+            ]
+          },
+          "policy_state": {
+            "type": "string",
+            "enum": [
+              "synced",
+              "pending",
+              "waiting_report",
+              "not_set",
+              "unknown"
+            ]
+          },
+          "current_version": {
+            "type": "string"
+          },
+          "desired_version": {
+            "type": "string"
+          },
+          "current_policy_revision": {
+            "type": "string"
+          },
+          "desired_policy_revision": {
+            "type": "string"
+          },
+          "hmac_secret_configured": {
+            "type": "boolean"
+          },
+          "hmac_secret_source": {
+            "type": "string"
+          },
+          "hmac_secret_updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "deploy_ready": {
+            "type": "boolean"
+          },
+          "pending_tasks": {
+            "type": "integer"
+          },
+          "running_tasks": {
+            "type": "integer"
+          },
+          "failed_tasks": {
+            "type": "integer"
+          },
+          "last_report_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "report_age_seconds": {
+            "type": "integer"
+          },
+          "last_error": {
+            "type": "string"
+          },
+          "recommendations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ClientTokenRequest": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "device_id",
+          "node_id",
+          "game_id",
+          "plan_id"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "device_id": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "game_id": {
+            "type": "string"
+          },
+          "plan_id": {
+            "type": "string",
+            "example": "standard"
+          }
+        }
+      },
+      "ClientTokenResponse": {
+        "type": "object",
+        "properties": {
+          "node": {
+            "type": "object",
+            "properties": {
+              "node_id": {
+                "type": "string"
+              },
+              "host": {
+                "type": "string"
+              },
+              "port": {
+                "type": "integer"
+              },
+              "alpn": {
+                "type": "string"
+              }
+            }
+          },
+          "token": {
+            "type": "string"
+          },
+          "token_type": {
+            "type": "string",
+            "example": "Bearer"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "config_revision": {
+            "type": "string"
+          },
+          "game_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "policy_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

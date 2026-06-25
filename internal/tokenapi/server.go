@@ -28,6 +28,9 @@ type IssueRequest struct {
 	RateLimitMbps  int      `json:"rate_limit_mbps,omitempty"`
 	AllowTCP       *bool    `json:"allow_tcp,omitempty"`
 	AllowUDP       *bool    `json:"allow_udp,omitempty"`
+	GameIDs        []string `json:"game_ids,omitempty"`
+	PolicyIDs      []string `json:"policy_ids,omitempty"`
+	ConfigRevision string   `json:"config_revision,omitempty"`
 	Games          []string `json:"games,omitempty"`
 	Regions        []string `json:"regions,omitempty"`
 }
@@ -191,6 +194,9 @@ func (s *Server) issue(req IssueRequest, now time.Time) (string, time.Time, time
 		RateLimitMbps:  rateLimit,
 		AllowTCP:       &allowTCP,
 		AllowUDP:       &allowUDP,
+		GameIDs:        append(cleanList(req.GameIDs), cleanList(req.Games)...),
+		PolicyIDs:      cleanList(req.PolicyIDs),
+		ConfigRevision: strings.TrimSpace(req.ConfigRevision),
 		Games:          cleanList(req.Games),
 		Regions:        cleanList(req.Regions),
 	}, s.cfg.HMACSecret)

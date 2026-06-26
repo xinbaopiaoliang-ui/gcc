@@ -481,7 +481,7 @@ export default function App() {
     setRepairingAdmin(true);
     try {
       const response = await createRepairAdminTask(SESSION_API_KEY, node.node_id, { listen_host: "0.0.0.0" });
-      messageAPI.success(`Admin 淇浠诲姟宸插垱寤猴細${response.task.task_id}`);
+      messageAPI.success(`Admin 修复任务已创建：${response.task.task_id}`);
       await loadNodes();
       if (detailOpen && detailNode?.node_id === node.node_id) {
         await loadNodeDetail(node.node_id);
@@ -540,7 +540,7 @@ export default function App() {
     setTuningUDPBuffer(true);
     try {
       const response = await createTuneUDPBufferTask(SESSION_API_KEY, node.node_id, input);
-      messageAPI.success(`UDP Buffer 浼樺寲浠诲姟宸插垱寤猴細${response.task.task_id}`);
+      messageAPI.success(`UDP Buffer 优化任务已创建：${response.task.task_id}`);
       await loadNodes();
       if (detailOpen && detailNode?.node_id === node.node_id) {
         await loadNodeDetail(node.node_id);
@@ -668,7 +668,7 @@ export default function App() {
     }
     try {
       const response = await retryTask(SESSION_API_KEY, task.task_id);
-      messageAPI.success(`閲嶈瘯浠诲姟宸插垱寤猴細${response.task.task_id}`);
+      messageAPI.success(`重试任务已创建：${response.task.task_id}`);
       if (detailNode) {
         await loadNodeDetail(detailNode.node_id);
       }

@@ -123,6 +123,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/panel/users", s.handlePanelUsers)
 	mux.HandleFunc("/api/panel/users/", s.handlePanelUser)
 	mux.HandleFunc("/api/panel/security/overview", s.handlePanelSecurityOverview)
+	mux.HandleFunc("/api/panel/security/backend-api-keys", s.handlePanelBackendAPIKeys)
 	mux.HandleFunc("/api/panel/system/check", s.handlePanelSystemCheck)
 	mux.HandleFunc("/api/panel/token-defaults", s.handlePanelTokenDefaults)
 	mux.HandleFunc("/api/panel/client-sessions", s.handlePanelClientSessions)

@@ -763,3 +763,12 @@ admin:
 - [x] 节点配置新增 `limits.udp_send_queue_size`，默认 `1024`，校验范围 `16..65536`。
 - [x] UDP target -> client 回包队列从固定 64 改为读取配置，队列满时保留低延迟策略：丢弃旧包并记录 `send_queue_overflow`。
 - [x] 控制面板一键部署模板和 `config.example.yaml` 默认写入 `udp_send_queue_size: 1024`。
+
+### 阶段 81：v0.7.6 Backend API Key 管理员查看
+
+- [x] 新增 `GET /api/panel/security/backend-api-keys` 管理员接口，返回控制面板 `security.backend_api_keys` 的完整值、掩码和长度。
+- [x] 接口只允许面板管理员 Bearer JWT 访问，不接受业务 Backend API Key 自身鉴权。
+- [x] 查看密钥会写入 `panel_audit_logs`，审计 action 为 `panel.security.backend_api_keys.view`，日志不记录密钥明文。
+- [x] 账号与权限页的 `Backend API Key` 指标增加“查看”按钮，弹窗展示完整密钥并支持复制。
+- [x] 本阶段无数据库迁移；配置仍来自 Go 后端 `panel.yaml` 的 `security.backend_api_keys`。
+- [x] 本地验证通过：`go test ./internal/panel`、`go test ./...`、`web/panel npm run build`。

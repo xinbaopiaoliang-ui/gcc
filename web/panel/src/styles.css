@@ -1646,6 +1646,63 @@ select {
   white-space: nowrap;
 }
 
+.security-secret-cell .ant-btn {
+  width: fit-content;
+  height: auto;
+  padding: 0;
+  font-size: 12px;
+}
+
+.backend-key-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.backend-key-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #dbe5f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.backend-key-meta {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.backend-key-meta code {
+  display: block;
+  overflow-x: auto;
+  padding: 9px 10px;
+  border: 1px solid #d7e0ec;
+  border-radius: 6px;
+  background: #101828;
+  color: #d6e4ff;
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.backend-key-meta span {
+  color: #64748b;
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+}
+
+.backend-key-empty {
+  padding: 14px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  color: #64748b;
+  text-align: center;
+}
+
 .system-check-panel {
   min-height: 560px;
   padding: 0;

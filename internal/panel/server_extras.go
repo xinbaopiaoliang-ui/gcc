@@ -13,6 +13,18 @@ type RetryTaskRequest struct {
 	Priority int `json:"priority,omitempty"`
 }
 
+type BackendAPIKeyView struct {
+	Index  int    `json:"index"`
+	Key    string `json:"key"`
+	Masked string `json:"masked"`
+	Length int    `json:"length"`
+}
+
+type BackendAPIKeysResponse struct {
+	Count int                 `json:"count"`
+	Keys  []BackendAPIKeyView `json:"keys"`
+}
+
 func (s *Server) handlePanelPolicyValidation(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.requirePanelAdmin(w, r); !ok {
 		return
@@ -132,6 +144,54 @@ func (s *Server) handlePanelSecurityOverview(w http.ResponseWriter, r *http.Requ
 		overview.Warnings = append(overview.Warnings, "存在未保存 SSH 凭据的节点，无法从面板执行部署或更新")
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"security": overview})
+}
+
+func (s *Server) handlePanelBackendAPIKeys(w http.ResponseWriter, r *http.Request) {
+	user, ok := s.requirePanelAdmin(w, r)
+	if !ok {
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+		return
+	}
+	keys := make([]BackendAPIKeyView, 0, len(s.cfg.Security.BackendAPIKeys))
+	for i, key := range s.cfg.Security.BackendAPIKeys {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		keys = append(keys, BackendAPIKeyView{
+			Index:  i + 1,
+			Key:    key,
+			Masked: maskBackendAPIKey(key),
+			Length: len(key),
+		})
+	}
+	if s.store != nil {
+		if err := s.store.RecordAudit(r.Context(), AuditLog{
+			OperatorID: &user.ID,
+			Action:     "panel.security.backend_api_keys.view",
+			TargetType: "panel_config",
+			TargetID:   "security.backend_api_keys",
+			Request: map[string]any{
+				"count": len(keys),
+			},
+			IP:        clientIP(r),
+			UserAgent: r.UserAgent(),
+		}); err != nil {
+			s.logger.Warn("record audit", "action", "panel.security.backend_api_keys.view", "error", err)
+		}
+	}
+	writeJSON(w, http.StatusOK, BackendAPIKeysResponse{Count: len(keys), Keys: keys})
+}
+
+func maskBackendAPIKey(key string) string {
+	key = strings.TrimSpace(key)
+	if len(key) <= 8 {
+		return strings.Repeat("*", len(key))
+	}
+	return key[:4] + strings.Repeat("*", 8) + key[len(key)-4:]
 }
 
 func (s *Server) handleRetryTask(w http.ResponseWriter, r *http.Request, taskID string) {

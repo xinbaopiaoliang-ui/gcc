@@ -389,3 +389,42 @@ Authorization: Bearer <panel_jwt>
 | `traffic.users[]` | `user_id` 维度的流量和活跃连接。 |
 | `traffic.flow_events[]` | 按 `network/event/reason/game_id/policy_id` 汇总的事件。 |
 | `traffic.policy_consistency[]` | 节点当前策略和目标策略是否一致。 |
+
+## 面板查看 Backend API Key
+
+适用版本：v0.7.6 起。
+
+```http
+GET /api/panel/security/backend-api-keys
+Authorization: Bearer <panel_jwt>
+```
+
+说明：
+
+- 该接口只给控制面板管理员使用，不使用 `backend_api_key` 自身鉴权。
+- 返回的是 Go 后端 `panel.yaml` 里 `security.backend_api_keys` 的当前值。
+- 页面默认只显示数量，管理员点击“查看”后才请求该接口。
+- 每次查看都会写入审计日志，action 为 `panel.security.backend_api_keys.view`。
+- 审计日志只记录查看动作和数量，不记录密钥明文。
+
+响应示例：
+
+```json
+{
+  "count": 1,
+  "keys": [
+    {
+      "index": 1,
+      "key": "backend-api-key-plain-text",
+      "masked": "back********text",
+      "length": 26
+    }
+  ]
+}
+```
+
+使用边界：
+
+- `key` 只交给业务后台保存，用于调用 `/api/backend/*`。
+- 不要把 `key` 下发给客户端。
+- 不要把 `key` 写入节点配置；节点使用的是自己的 `auth.hmac_secret` 和 `panel.api_key`。

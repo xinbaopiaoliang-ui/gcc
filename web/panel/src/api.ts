@@ -1,6 +1,7 @@
 import type {
   APIErrorBody,
   ApplyPolicyInput,
+  BackendAPIKeysResponse,
   ChangePasswordInput,
   ChangePasswordResponse,
   ClientSessionListResponse,
@@ -525,6 +526,10 @@ export async function testNodeCredential(apiKey: string, nodeID: string): Promis
 
 export async function getSecurityOverview(): Promise<SecurityOverviewResponse> {
   return request<SecurityOverviewResponse>("/api/panel/security/overview", "");
+}
+
+export async function getBackendAPIKeys(): Promise<BackendAPIKeysResponse> {
+  return request<BackendAPIKeysResponse>("/api/panel/security/backend-api-keys", "");
 }
 
 export async function getSystemCheck(): Promise<SystemCheckResponse> {

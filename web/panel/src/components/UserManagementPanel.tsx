@@ -4,7 +4,9 @@ import type { ColumnsType } from "antd/es/table";
 import {
   Ban,
   BadgeCheck,
+  Copy,
   Edit3,
+  Eye,
   KeyRound,
   RefreshCw,
   Search,
@@ -15,6 +17,7 @@ import {
 } from "lucide-react";
 import {
   createPanelUser,
+  getBackendAPIKeys,
   getSecurityOverview,
   listPanelUsers,
   PanelAPIError,
@@ -23,6 +26,7 @@ import {
 } from "../api";
 import type {
   PanelUser,
+  BackendAPIKeyView,
   PanelUserCreateInput,
   PanelUserPasswordResetInput,
   PanelUserRole,
@@ -150,10 +154,13 @@ function normalizeSecurityOverview(value: SecurityOverview | null | undefined): 
 export function UserManagementPanel({ currentUser }: { currentUser: PanelUser }) {
   const [users, setUsers] = useState<PanelUser[]>([]);
   const [security, setSecurity] = useState<SecurityOverview | null>(null);
+  const [backendKeys, setBackendKeys] = useState<BackendAPIKeyView[]>([]);
   const [loading, setLoading] = useState(false);
   const [securityLoading, setSecurityLoading] = useState(false);
+  const [backendKeysLoading, setBackendKeysLoading] = useState(false);
   const [error, setError] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [backendKeysOpen, setBackendKeysOpen] = useState(false);
   const [editUser, setEditUser] = useState<PanelUser | null>(null);
   const [resetUser, setResetUser] = useState<PanelUser | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -191,6 +198,32 @@ export function UserManagementPanel({ currentUser }: { currentUser: PanelUser })
       setSecurityLoading(false);
     }
   }, []);
+
+  const openBackendKeys = useCallback(async () => {
+    setBackendKeysOpen(true);
+    setBackendKeysLoading(true);
+    try {
+      const response = await getBackendAPIKeys();
+      setBackendKeys(Array.isArray(response.keys) ? response.keys : []);
+    } catch (err) {
+      setBackendKeys([]);
+      messageAPI.error(apiErrorText(err));
+    } finally {
+      setBackendKeysLoading(false);
+    }
+  }, [messageAPI]);
+
+  const copyBackendKey = useCallback(
+    async (key: string) => {
+      try {
+        await navigator.clipboard.writeText(key);
+        messageAPI.success("业务后台 API Key 已复制");
+      } catch {
+        messageAPI.error("复制失败，请手动选中密钥复制");
+      }
+    },
+    [messageAPI]
+  );
 
   useEffect(() => {
     void loadUsers();
@@ -445,9 +478,18 @@ export function UserManagementPanel({ currentUser }: { currentUser: PanelUser })
             </Tag>
           </div>
           <div className="security-overview-grid">
-            <div>
-              <span>Backend API Key</span>
+            <div className="security-secret-cell">
+              <span>业务后台 API Key</span>
               <strong>{security.config.backend_api_key_count} 个</strong>
+              <Button
+                size="small"
+                type="link"
+                icon={<Eye size={14} />}
+                disabled={!currentIsAdmin || security.config.backend_api_key_count === 0}
+                onClick={() => void openBackendKeys()}
+              >
+                查看
+              </Button>
             </div>
             <div>
               <span>命令签名</span>
@@ -538,6 +580,51 @@ export function UserManagementPanel({ currentUser }: { currentUser: PanelUser })
           showTotal: (total) => `共 ${total} 个账号`
         }}
       />
+
+      <Modal
+        title={
+          <span className="modal-title-icon">
+            <KeyRound size={18} />
+            业务后台 API Key
+          </span>
+        }
+        open={backendKeysOpen}
+        onCancel={() => setBackendKeysOpen(false)}
+        footer={[
+          <Button key="close" onClick={() => setBackendKeysOpen(false)}>
+            关闭
+          </Button>
+        ]}
+        width={760}
+        destroyOnClose
+      >
+        <Alert
+          className="inline-alert"
+          type="warning"
+          showIcon
+          message="这里显示的是业务后台调用控制面板 /api/backend/* 使用的密钥。只给业务后台保存，不要发给客户端或节点。"
+        />
+        <div className="backend-key-list">
+          {backendKeysLoading ? (
+            <div className="backend-key-empty">正在读取业务后台 API Key...</div>
+          ) : backendKeys.length ? (
+            backendKeys.map((item) => (
+              <div className="backend-key-row" key={item.index}>
+                <div className="backend-key-meta">
+                  <Text type="secondary">第 {item.index} 个，长度 {item.length}</Text>
+                  <code>{item.key}</code>
+                  <span>{item.masked}</span>
+                </div>
+                <Button icon={<Copy size={15} />} onClick={() => void copyBackendKey(item.key)}>
+                  复制
+                </Button>
+              </div>
+            ))
+          ) : (
+            <div className="backend-key-empty">当前没有配置业务后台 API Key</div>
+          )}
+        </div>
+      </Modal>
 
       <Modal
         title={

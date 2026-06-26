@@ -726,6 +726,18 @@ export interface SecurityOverviewResponse {
   security: SecurityOverview;
 }
 
+export interface BackendAPIKeyView {
+  index: number;
+  key: string;
+  masked: string;
+  length: number;
+}
+
+export interface BackendAPIKeysResponse {
+  count: number;
+  keys: BackendAPIKeyView[];
+}
+
 export interface APIErrorBody {
   error?: {
     code?: string;

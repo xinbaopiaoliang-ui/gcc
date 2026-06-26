@@ -491,6 +491,43 @@ func TestPanelRoleRestrictions(t *testing.T) {
 	}
 }
 
+func TestPanelBackendAPIKeysViewRequiresAdmin(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Security.BackendAPIKeys = []string{"backend-key-one", "backend-key-two"}
+	cfg.Session.Secret = "session-secret-session-secret"
+	store := newFakeNodeStore()
+	addFakePanelUser(t, store, "admin", "secret-password")
+	addFakePanelUserWithRole(t, store, "ops", "operator-password", PanelUserRoleOperator)
+	server := NewServer(cfg, slog.Default(), "0.7.6-test", store)
+	mux := http.NewServeMux()
+	server.RegisterRoutes(mux)
+
+	operatorCookie := loginPanel(t, mux, "ops", "operator-password")
+	rec := serveJSONWithCookie(mux, http.MethodGet, "/api/panel/security/backend-api-keys", "", operatorCookie)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("operator backend api keys status = %d, want %d body=%s", rec.Code, http.StatusForbidden, rec.Body.String())
+	}
+
+	adminCookie := loginPanel(t, mux, "admin", "secret-password")
+	rec = serveJSONWithCookie(mux, http.MethodGet, "/api/panel/security/backend-api-keys", "", adminCookie)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("admin backend api keys status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var payload BackendAPIKeysResponse
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode backend api keys: %v", err)
+	}
+	if payload.Count != 2 || len(payload.Keys) != 2 {
+		t.Fatalf("unexpected backend api keys count: %#v", payload)
+	}
+	if payload.Keys[0].Key != "backend-key-one" || payload.Keys[0].Masked == payload.Keys[0].Key || payload.Keys[0].Length != len("backend-key-one") {
+		t.Fatalf("unexpected first key payload: %#v", payload.Keys[0])
+	}
+	if len(store.audit) == 0 || store.audit[len(store.audit)-1].Action != "panel.security.backend_api_keys.view" {
+		t.Fatalf("backend api key view audit missing: %#v", store.audit)
+	}
+}
+
 func TestPanelNodeCRUD(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Security.BackendAPIKeys = []string{"panel-key"}

@@ -612,7 +612,7 @@ export default function App() {
     setDeploying(true);
     try {
       await createDeployTask(SESSION_API_KEY, deployNode.node_id, input);
-      messageAPI.success("閮ㄧ讲浠诲姟宸插垱寤猴紝璇︽儏椤靛彲鏌ョ湅浠诲姟鏃ュ織");
+      messageAPI.success("部署任务已创建，可在节点详情页查看任务日志");
       setDeployOpen(false);
       await loadNodes();
       if (detailOpen && detailNode?.node_id === deployNode.node_id) {
@@ -633,7 +633,7 @@ export default function App() {
     setUpdating(true);
     try {
       await createUpdateTask(SESSION_API_KEY, targetUpdateNode.node_id, input);
-      messageAPI.success("鏇存柊浠诲姟宸插垱寤猴紝璇︽儏椤靛彲鏌ョ湅浠诲姟鏃ュ織");
+      messageAPI.success("更新任务已创建，可在节点详情页查看任务日志");
       setUpdateOpen(false);
       await loadNodes();
       if (detailOpen && detailNode?.node_id === targetUpdateNode.node_id) {
@@ -826,7 +826,7 @@ export default function App() {
         <button
           className={`rail-item ${activeView === "nodes" ? "active" : ""}`}
           type="button"
-          aria-label="鑺傜偣"
+          aria-label="节点"
           onClick={() => setActiveView("nodes")}
         >
           <Signal size={18} />
@@ -834,7 +834,7 @@ export default function App() {
         <button
           className={`rail-item ${activeView === "traffic" ? "active" : ""}`}
           type="button"
-          aria-label="娴侀噺"
+          aria-label="流量"
           onClick={() => setActiveView("traffic")}
         >
           <BarChart3 size={18} />
@@ -851,7 +851,7 @@ export default function App() {
           <button
             className={`rail-item ${activeView === "policies" ? "active" : ""}`}
             type="button"
-            aria-label="绛栫暐"
+            aria-label="策略"
             onClick={() => setActiveView("policies")}
           >
             <Route size={18} />
@@ -861,7 +861,7 @@ export default function App() {
           <button
             className={`rail-item ${activeView === "users" ? "active" : ""}`}
             type="button"
-            aria-label="璐﹀彿"
+            aria-label="账号"
             onClick={() => setActiveView("users")}
           >
             <UsersRound size={18} />
@@ -871,7 +871,7 @@ export default function App() {
           <button
             className={`rail-item ${activeView === "system" ? "active" : ""}`}
             type="button"
-            aria-label="绯荤粺鑷"
+            aria-label="系统自检"
             onClick={() => setActiveView("system")}
           >
             <Wrench size={18} />

@@ -53,15 +53,15 @@ export function NodeTable({
     },
     {
       title: "节点",
-      dataIndex: "node_id",
-      width: 220,
+      dataIndex: "name",
+      width: 210,
       render: (_, node) => (
         <div className="node-cell">
           <button className="link-button" type="button" onClick={() => onView(node)}>
-            {node.node_id}
+            {node.name || "未命名节点"}
           </button>
           <Text type="secondary" className="node-name">
-            {node.name}
+            {[node.region, node.country].filter(Boolean).join(" / ") || "-"}
           </Text>
           {node.last_error ? (
             <Text type="danger" className="node-name">
@@ -69,6 +69,16 @@ export function NodeTable({
             </Text>
           ) : null}
         </div>
+      )
+    },
+    {
+      title: "节点ID",
+      dataIndex: "node_id",
+      width: 220,
+      render: (_, node) => (
+        <button className="link-button mono" type="button" onClick={() => onView(node)}>
+          {node.node_id}
+        </button>
       )
     },
     {
@@ -194,7 +204,7 @@ export function NodeTable({
       dataSource={nodes}
       loading={loading}
       rowKey="node_id"
-      scroll={{ x: 1580 }}
+      scroll={{ x: 1680 }}
       pagination={{
         pageSize: 10,
         showSizeChanger: false,

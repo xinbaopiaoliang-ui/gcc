@@ -104,3 +104,46 @@ route_policies:
 		t.Fatal("LoadData returned nil for invalid route policy")
 	}
 }
+
+func TestLoadDataAppliesUDPSendQueueSizeDefault(t *testing.T) {
+	data := []byte(`server:
+  listen: ":5555"
+  alpn: "gaccel/1"
+  cert_file: "/tmp/cert.pem"
+  key_file: "/tmp/key.pem"
+
+auth:
+  mode: "dev"
+  dev_tokens:
+    - "dev-token"
+`)
+
+	cfg, err := LoadData(data)
+	if err != nil {
+		t.Fatalf("LoadData returned error: %v", err)
+	}
+	if cfg.Limits.UDPSendQueueSize != 1024 {
+		t.Fatalf("UDPSendQueueSize = %d, want 1024", cfg.Limits.UDPSendQueueSize)
+	}
+}
+
+func TestLoadDataRejectsInvalidUDPSendQueueSize(t *testing.T) {
+	data := []byte(`server:
+  listen: ":5555"
+  alpn: "gaccel/1"
+  cert_file: "/tmp/cert.pem"
+  key_file: "/tmp/key.pem"
+
+auth:
+  mode: "dev"
+  dev_tokens:
+    - "dev-token"
+
+limits:
+  udp_send_queue_size: 8
+`)
+
+	if _, err := LoadData(data); err == nil {
+		t.Fatal("LoadData returned nil for invalid udp_send_queue_size")
+	}
+}

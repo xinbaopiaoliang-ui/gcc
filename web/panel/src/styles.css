@@ -606,7 +606,7 @@ select {
 
 .traffic-metrics {
   display: grid;
-  grid-template-columns: 1.35fr repeat(4, minmax(0, 1fr));
+  grid-template-columns: 1.35fr repeat(5, minmax(0, 1fr));
   gap: 1px;
   margin: 0 16px;
   overflow: hidden;
@@ -632,6 +632,10 @@ select {
   background: #fffaf2;
 }
 
+.traffic-metric.drops {
+  background: #fff7ed;
+}
+
 .traffic-metric.policy {
   background: #f7fbf8;
 }
@@ -650,6 +654,10 @@ select {
 
 .traffic-metric.errors .traffic-metric-icon {
   color: #b45309;
+}
+
+.traffic-metric.drops .traffic-metric-icon {
+  color: #c2410c;
 }
 
 .traffic-metric.policy .traffic-metric-icon {

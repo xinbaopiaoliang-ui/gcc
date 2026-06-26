@@ -29,6 +29,7 @@ limits:
   session_disconnect_timeout: "45s"
   quic_idle_timeout: "60s"
   udp_idle_timeout: "60s"
+  udp_send_queue_size: 1024
   tcp_idle_timeout: "10m"
   user_rate_limit_mbps: 100
 

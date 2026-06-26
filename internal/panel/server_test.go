@@ -96,6 +96,8 @@ func TestTrafficOverviewEndpointAggregatesReports(t *testing.T) {
 		}},
 		FlowEvents: []metrics.FlowEventSnapshot{{
 			Network: "tcp", Event: "open", Reason: "success", GameID: "steam", PolicyID: "steam-web", Count: 1,
+		}, {
+			Network: "udp", Event: "drop", Reason: "send_queue_overflow", GameID: "steam", PolicyID: "steam-game", Count: 1,
 		}},
 	}
 	latestMetrics := metrics.Snapshot{
@@ -118,6 +120,7 @@ func TestTrafficOverviewEndpointAggregatesReports(t *testing.T) {
 			{Network: "tcp", Event: "open", Reason: "success", GameID: "steam", PolicyID: "steam-web", Count: 3},
 			{Network: "tcp", Event: "open", Reason: "denied", GameID: "steam", PolicyID: "steam-web", Count: 2},
 			{Network: "udp", Event: "close", Reason: "session_closed", GameID: "steam", PolicyID: "steam-game", Count: 4},
+			{Network: "udp", Event: "drop", Reason: "send_queue_overflow", GameID: "steam", PolicyID: "steam-game", Count: 5},
 		},
 	}
 	firstRaw, err := jsonRaw(firstMetrics)
@@ -174,6 +177,9 @@ func TestTrafficOverviewEndpointAggregatesReports(t *testing.T) {
 	}
 	if payload.Traffic.Totals.FlowOpenErrors != 2 {
 		t.Fatalf("flow open errors = %d, want 2", payload.Traffic.Totals.FlowOpenErrors)
+	}
+	if payload.Traffic.Totals.UDPPacketDrops != 4 {
+		t.Fatalf("udp packet drops = %d, want 4", payload.Traffic.Totals.UDPPacketDrops)
 	}
 	if len(payload.Traffic.Users) != 1 || payload.Traffic.Users[0].UserID != "user-1" {
 		t.Fatalf("unexpected user stats: %#v", payload.Traffic.Users)

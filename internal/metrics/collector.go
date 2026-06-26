@@ -121,6 +121,10 @@ func (c *Collector) FlowOpenFailed(network, reason string) {
 	c.AddFlowEvent(network, "open", normalizeReason(reason))
 }
 
+func (c *Collector) UDPDatagramDropped(reason, gameID, policyID string) {
+	c.AddFlowEventWithPolicy("udp", "drop", normalizeReason(reason), gameID, policyID)
+}
+
 func (c *Collector) AddFlowEvent(network, event, reason string) {
 	c.AddFlowEventWithPolicy(network, event, reason, "", "")
 }

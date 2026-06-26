@@ -411,6 +411,7 @@ export interface TrafficTotals {
   total_bytes: number;
   flow_open_errors: number;
   flow_close_events: number;
+  udp_packet_drops: number;
   policy_drift_nodes: number;
 }
 

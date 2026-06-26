@@ -95,6 +95,24 @@ function eventText(value?: string) {
       return "会话关闭";
     case "eof":
       return "EOF";
+    case "drop":
+      return "丢包";
+    case "send_queue_overflow":
+      return "发送队列溢出";
+    case "send_queue_full":
+      return "发送队列已满";
+    case "send_datagram_failed":
+      return "Datagram 发送失败";
+    case "rate_limited_client_to_target":
+      return "客户端到目标被限速";
+    case "rate_limited_target_to_client":
+      return "目标到客户端被限速";
+    case "invalid_datagram":
+      return "非法 Datagram";
+    case "unsupported_datagram":
+      return "不支持的 Datagram";
+    case "unknown_flow":
+      return "未知 Flow";
     default:
       return value || "-";
   }
@@ -132,6 +150,13 @@ function metricCards(traffic: TrafficOverview | null) {
       hint: "按 reason 排查"
     },
     {
+      key: "drops",
+      icon: <AlertTriangle size={18} />,
+      label: "UDP 丢包",
+      value: `${totals?.udp_packet_drops ?? 0}`,
+      hint: "按 drop reason 排查"
+    },
+    {
       key: "policy",
       icon: <Route size={18} />,
       label: "策略漂移",
@@ -151,6 +176,10 @@ export function TrafficOverviewPanel({ onRequestError }: { onRequestError: (erro
   const nodes = useMemo(() => normalizeArray(traffic?.nodes), [traffic?.nodes]);
   const users = useMemo(() => normalizeArray(traffic?.users), [traffic?.users]);
   const flowEvents = useMemo(() => normalizeArray(traffic?.flow_events), [traffic?.flow_events]);
+  const udpDropEvents = useMemo(
+    () => flowEvents.filter((event) => event.network === "udp" && event.event === "drop"),
+    [flowEvents]
+  );
   const policyEvents = useMemo(() => normalizeArray(traffic?.policy_events), [traffic?.policy_events]);
   const policyConsistency = useMemo(() => normalizeArray(traffic?.policy_consistency), [traffic?.policy_consistency]);
 
@@ -400,6 +429,23 @@ export function TrafficOverviewPanel({ onRequestError }: { onRequestError: (erro
           ))}
         </section>
       ) : null}
+
+      <section className="traffic-section">
+        <div className="traffic-section-title">
+          <AlertTriangle size={17} />
+          <strong>UDP 丢包原因排行</strong>
+        </div>
+        <Table<TrafficFlowEventStats>
+          rowKey={(record) => `${record.reason}:${record.game_id || "-"}:${record.policy_id || "-"}`}
+          size="small"
+          loading={loading}
+          pagination={false}
+          columns={flowColumns}
+          dataSource={udpDropEvents}
+          scroll={{ x: 520 }}
+          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无 UDP 丢包事件" /> }}
+        />
+      </section>
 
       <section className="traffic-section">
         <div className="traffic-section-title">

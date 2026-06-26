@@ -333,6 +333,7 @@ func (s *Server) renderNodeConfig(node Node, hmacSecret string, panelBaseURL str
 			"max_flows_per_conn":   256,
 			"quic_idle_timeout":    "60s",
 			"udp_idle_timeout":     "60s",
+			"udp_send_queue_size":  1024,
 			"tcp_idle_timeout":     "10m",
 			"user_rate_limit_mbps": 100,
 		},

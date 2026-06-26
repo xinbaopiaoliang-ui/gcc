@@ -53,6 +53,7 @@ type LimitsConfig struct {
 	SessionDisconnectTimeout time.Duration `yaml:"session_disconnect_timeout"`
 	QUICIdleTimeout          time.Duration `yaml:"quic_idle_timeout"`
 	UDPIdleTimeout           time.Duration `yaml:"udp_idle_timeout"`
+	UDPSendQueueSize         int           `yaml:"udp_send_queue_size"`
 	TCPIdleTimeout           time.Duration `yaml:"tcp_idle_timeout"`
 	UserRateLimitMbps        int           `yaml:"user_rate_limit_mbps"`
 }
@@ -157,6 +158,7 @@ func Default() *Config {
 			SessionDisconnectTimeout: 45 * time.Second,
 			QUICIdleTimeout:          60 * time.Second,
 			UDPIdleTimeout:           60 * time.Second,
+			UDPSendQueueSize:         1024,
 			TCPIdleTimeout:           10 * time.Minute,
 			UserRateLimitMbps:        100,
 		},
@@ -226,6 +228,9 @@ func applyDefaults(cfg *Config) {
 	if cfg.Limits.UDPIdleTimeout == 0 {
 		cfg.Limits.UDPIdleTimeout = def.Limits.UDPIdleTimeout
 	}
+	if cfg.Limits.UDPSendQueueSize == 0 {
+		cfg.Limits.UDPSendQueueSize = def.Limits.UDPSendQueueSize
+	}
 	if cfg.Limits.TCPIdleTimeout == 0 {
 		cfg.Limits.TCPIdleTimeout = def.Limits.TCPIdleTimeout
 	}
@@ -282,6 +287,9 @@ func validate(cfg *Config) error {
 	}
 	if cfg.Auth.TokenLeeway < 0 {
 		return errors.New("auth.token_leeway must be >= 0")
+	}
+	if cfg.Limits.UDPSendQueueSize < 16 || cfg.Limits.UDPSendQueueSize > 65536 {
+		return errors.New("limits.udp_send_queue_size must be between 16 and 65536")
 	}
 	switch cfg.Auth.Mode {
 	case "dev":

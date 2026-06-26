@@ -745,3 +745,21 @@ admin:
 - [x] QUIC 探测复用节点 `hmac_secret` 的加密副本生成短期测试 JWT，只返回探测结果，不在响应和日志中暴露明文密钥。
 - [x] 节点接入自检弹窗新增“主动探测”入口，并把主动连通性探测、SSH 网络体检、Admin 修复和 UDP Buffer 优化分区展示。
 - [x] 前端版本号提升到 `0.7.2`，本地验证通过：`go test ./internal/panel`、`web/panel npm run build`。
+
+### 阶段 78：v0.7.3 节点 UDP 丢包原因计数
+
+- [x] 节点 UDP Datagram 转发路径新增 `udp/drop` flow event，按 `reason`、`game_id`、`policy_id` 聚合。
+- [x] 覆盖 `rate_limited_client_to_target`、`rate_limited_target_to_client`、`send_queue_overflow`、`send_queue_full`、`send_datagram_failed`、`invalid_datagram`、`unsupported_datagram` 和 `unknown_flow`。
+- [x] 保持客户端协议不变，仍然使用 QUIC Datagram；本阶段只增加节点侧观测和统计，不改成本地代理或可靠 UDP。
+
+### 阶段 79：v0.7.4 面板 UDP 丢包观测
+
+- [x] `GET /api/panel/traffic/overview` 新增 `totals.udp_packet_drops`，按窗口增量统计节点上报的 UDP 丢包事件。
+- [x] 流量与联调观测页新增“UDP 丢包”指标卡和“UDP 丢包原因排行”，用于区分队列溢出、限速、未知 flow 和 datagram 发送失败。
+- [x] 补充后端聚合测试和指标 collector 测试，避免历史累计值误判为当前窗口问题。
+
+### 阶段 80：v0.7.5 UDP 发送队列配置
+
+- [x] 节点配置新增 `limits.udp_send_queue_size`，默认 `1024`，校验范围 `16..65536`。
+- [x] UDP target -> client 回包队列从固定 64 改为读取配置，队列满时保留低延迟策略：丢弃旧包并记录 `send_queue_overflow`。
+- [x] 控制面板一键部署模板和 `config.example.yaml` 默认写入 `udp_send_queue_size: 1024`。

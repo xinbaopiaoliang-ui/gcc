@@ -50,6 +50,7 @@ type TrafficTotals struct {
 	TotalBytes            int64 `json:"total_bytes"`
 	FlowOpenErrors        int64 `json:"flow_open_errors"`
 	FlowCloseEvents       int64 `json:"flow_close_events"`
+	UDPPacketDrops        int64 `json:"udp_packet_drops"`
 	PolicyDriftNodes      int   `json:"policy_drift_nodes"`
 }
 
@@ -270,6 +271,9 @@ func BuildTrafficOverview(nodes []Node, samples []trafficReportSample, filter Tr
 		if row.Event == "close" {
 			overview.Totals.FlowCloseEvents += row.Count
 		}
+		if row.Network == "udp" && row.Event == "drop" {
+			overview.Totals.UDPPacketDrops += row.Count
+		}
 	}
 	overview.Users = sortTrafficUsers(userAgg, filter.Limit)
 	overview.FlowEvents = sortTrafficEvents(eventAgg, filter.Limit)
@@ -479,6 +483,9 @@ func trafficRecommendations(overview TrafficOverview) []string {
 	}
 	if overview.Totals.FlowOpenErrors > 0 {
 		recommendations = append(recommendations, "存在 flow 打开失败，请查看事件排行里的 network、reason、game_id 和 policy_id。")
+	}
+	if overview.Totals.UDPPacketDrops > 0 {
+		recommendations = append(recommendations, "存在 UDP 丢包事件，请优先查看 UDP 丢包原因排行；send_queue_overflow 代表节点回包队列被挤掉，rate_limited 代表当前限速过低。")
 	}
 	if overview.Totals.ActiveQUICConnections == 0 && overview.Totals.ReportNodeCount > 0 {
 		recommendations = append(recommendations, "当前没有活跃客户端连接，如客户端反馈断连，请同步查看节点 journalctl 日志。")

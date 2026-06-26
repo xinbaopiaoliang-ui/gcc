@@ -180,15 +180,18 @@ func (s *connSession) openUDP(ctx context.Context, targetHost string, targetPort
 
 	flowID := s.nextFlow.Add(1)
 	flow := newUDPFlow(udpFlowConfig{
-		id:          flowID,
-		conn:        conn,
-		idleTimeout: cfg.Limits.UDPIdleTimeout,
-		collector:   s.collector,
-		userID:      s.userID(),
-		limiter:     s.limiter,
-		send:        s.conn.SendDatagram,
-		remove:      s.removeUDPFlow,
-		logger:      s.logger.With("flow_id", flowID, "target", target),
+		id:            flowID,
+		conn:          conn,
+		idleTimeout:   cfg.Limits.UDPIdleTimeout,
+		sendQueueSize: cfg.Limits.UDPSendQueueSize,
+		collector:     s.collector,
+		userID:        s.userID(),
+		gameID:        metadata.GameID,
+		policyID:      metadata.PolicyID,
+		limiter:       s.limiter,
+		send:          s.conn.SendDatagram,
+		remove:        s.removeUDPFlow,
+		logger:        s.logger.With("flow_id", flowID, "target", target),
 	})
 	s.flows[flowID] = flow
 	flow.record = s.record.AddFlow(flowID, "udp", target, sessionFlowMetadata(metadata))
@@ -312,9 +315,11 @@ func (s *connSession) handleDatagram(packet []byte) error {
 	s.record.Touch()
 	datagram, err := protocol.ParseDatagram(packet)
 	if err != nil {
+		s.collector.UDPDatagramDropped("invalid_datagram", "", "")
 		return err
 	}
 	if datagram.Version != protocol.Version || datagram.Type != protocol.DatagramTypeUDP {
+		s.collector.UDPDatagramDropped("unsupported_datagram", "", "")
 		return errors.New("unsupported datagram")
 	}
 
@@ -322,6 +327,7 @@ func (s *connSession) handleDatagram(packet []byte) error {
 	flow := s.flows[datagram.FlowID]
 	s.mu.RUnlock()
 	if flow == nil {
+		s.collector.UDPDatagramDropped("unknown_flow", "", "")
 		return errors.New("unknown flow")
 	}
 	return flow.write(datagram.Payload)
@@ -472,16 +478,19 @@ func sessionFlowMetadata(metadata protocol.FlowMetadata) sessions.FlowMetadata {
 }
 
 type udpFlowConfig struct {
-	id          uint32
-	conn        *net.UDPConn
-	idleTimeout time.Duration
-	collector   *metrics.Collector
-	record      *sessions.Flow
-	userID      string
-	limiter     *limiter.ByteLimiter
-	send        func([]byte) error
-	remove      func(uint32)
-	logger      *slog.Logger
+	id            uint32
+	conn          *net.UDPConn
+	idleTimeout   time.Duration
+	sendQueueSize int
+	collector     *metrics.Collector
+	record        *sessions.Flow
+	userID        string
+	gameID        string
+	policyID      string
+	limiter       *limiter.ByteLimiter
+	send          func([]byte) error
+	remove        func(uint32)
+	logger        *slog.Logger
 }
 
 type udpFlow struct {
@@ -491,6 +500,8 @@ type udpFlow struct {
 	collector   *metrics.Collector
 	record      *sessions.Flow
 	userID      string
+	gameID      string
+	policyID    string
 	limiter     *limiter.ByteLimiter
 	send        func([]byte) error
 	remove      func(uint32)
@@ -503,6 +514,10 @@ type udpFlow struct {
 }
 
 func newUDPFlow(cfg udpFlowConfig) *udpFlow {
+	sendQueueSize := cfg.sendQueueSize
+	if sendQueueSize <= 0 {
+		sendQueueSize = 1024
+	}
 	flow := &udpFlow{
 		id:          cfg.id,
 		conn:        cfg.conn,
@@ -510,11 +525,13 @@ func newUDPFlow(cfg udpFlowConfig) *udpFlow {
 		collector:   cfg.collector,
 		record:      cfg.record,
 		userID:      cfg.userID,
+		gameID:      cfg.gameID,
+		policyID:    cfg.policyID,
 		limiter:     cfg.limiter,
 		send:        cfg.send,
 		remove:      cfg.remove,
 		logger:      cfg.logger,
-		sendQ:       make(chan []byte, 64),
+		sendQ:       make(chan []byte, sendQueueSize),
 		done:        make(chan struct{}),
 	}
 	flow.touch()
@@ -530,6 +547,7 @@ func (f *udpFlow) start() {
 func (f *udpFlow) write(payload []byte) error {
 	f.touch()
 	if !f.limiter.Allow(len(payload)) {
+		f.collector.UDPDatagramDropped("rate_limited_client_to_target", f.gameID, f.policyID)
 		f.logger.Debug("drop udp packet because rate limit exceeded", "direction", "client_to_target", "bytes", len(payload))
 		return nil
 	}
@@ -553,6 +571,7 @@ func (f *udpFlow) readLoop() {
 		}
 		f.touch()
 		if !f.limiter.Allow(n) {
+			f.collector.UDPDatagramDropped("rate_limited_target_to_client", f.gameID, f.policyID)
 			f.logger.Debug("drop udp packet because rate limit exceeded", "direction", "target_to_client", "bytes", n)
 			continue
 		}
@@ -578,6 +597,7 @@ func (f *udpFlow) sendLoop() {
 			return
 		case packet := <-f.sendQ:
 			if err := f.send(packet); err != nil {
+				f.collector.UDPDatagramDropped("send_datagram_failed", f.gameID, f.policyID)
 				f.logger.Debug("send datagram failed", "error", err)
 				f.close("send_error")
 				return
@@ -613,12 +633,14 @@ func (f *udpFlow) enqueue(packet []byte) {
 
 	select {
 	case <-f.sendQ:
+		f.collector.UDPDatagramDropped("send_queue_overflow", f.gameID, f.policyID)
 	default:
 	}
 
 	select {
 	case f.sendQ <- packet:
 	default:
+		f.collector.UDPDatagramDropped("send_queue_full", f.gameID, f.policyID)
 		f.logger.Debug("drop datagram because send queue is full")
 	}
 }

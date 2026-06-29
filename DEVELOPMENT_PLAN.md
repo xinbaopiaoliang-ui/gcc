@@ -772,3 +772,14 @@ admin:
 - [x] 账号与权限页的 `Backend API Key` 指标增加“查看”按钮，弹窗展示完整密钥并支持复制。
 - [x] 本阶段无数据库迁移；配置仍来自 Go 后端 `panel.yaml` 的 `security.backend_api_keys`。
 - [x] 本地验证通过：`go test ./internal/panel`、`go test ./...`、`web/panel npm run build`。
+
+### 阶段 82：v0.7.7 节点 HMAC Secret 修复闭环
+
+- [x] 新增 `GET /api/panel/nodes/{node_id}/hmac-secret`，管理员可查看节点密钥状态，不返回明文。
+- [x] 新增 `PUT /api/panel/nodes/{node_id}/hmac-secret`，管理员可在控制面板重新同步节点 `hmac_secret` 明文，后端用 `security.master_key` 加密保存到 `panel_nodes.hmac_secret_encrypted`。
+- [x] 新增 `DELETE /api/panel/nodes/{node_id}/hmac-secret`，管理员可清空损坏或错误的加密副本，避免继续一键部署时报 `decrypt secret failed`。
+- [x] 密钥状态区分 `missing`、`ok`、`decrypt_failed`、`unsupported_format`、`invalid`、`secret_box_unavailable`，并返回短 SHA256 指纹用于人工核对。
+- [x] 所有密钥修复接口仅允许面板管理员 Bearer JWT 访问；审计日志记录 `panel.node.hmac_secret.sync` / `panel.node.hmac_secret.clear`，并对 `hmac_secret` 明文脱敏。
+- [x] 节点列表和节点详情抽屉新增“节点密钥”入口，支持刷新状态、同步密钥、清空副本。
+- [x] 本阶段不新增 SQL；复用 v0.6.4 已加入的 `panel_nodes.hmac_secret_encrypted`、`hmac_secret_source`、`hmac_secret_updated_at` 字段。
+- [x] 本地验证通过：`go test ./internal/panel`、`web/panel npm run build`。

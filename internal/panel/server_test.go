@@ -675,6 +675,109 @@ func TestBackendNodeUpsertStoresEncryptedHMACSecret(t *testing.T) {
 	}
 }
 
+func TestPanelNodeHMACSecretRepairFlow(t *testing.T) {
+	oldBox, err := NewSecretBox("old-master-key-old-master-key")
+	if err != nil {
+		t.Fatalf("old secret box: %v", err)
+	}
+	encryptedWithOldKey, err := oldBox.Encrypt("backend-issued-node-secret-123456")
+	if err != nil {
+		t.Fatalf("encrypt old hmac secret: %v", err)
+	}
+	cfg := DefaultConfig()
+	cfg.Security.MasterKey = "new-master-key-new-master-key"
+	cfg.Session.Secret = "session-secret-session-secret"
+	store := newFakeNodeStore()
+	addFakePanelUser(t, store, "admin", "secret-password")
+	addFakePanelUserWithRole(t, store, "ops", "operator-password", PanelUserRoleOperator)
+	store.nodes["node-hk-01"] = Node{
+		ID:                   1,
+		NodeID:               "node-hk-01",
+		Name:                 "Hong Kong 01",
+		EndpointHost:         "195.245.242.9",
+		EndpointPort:         5555,
+		ALPN:                 "gaccel/1",
+		AdminHost:            "127.0.0.1",
+		AdminPort:            5557,
+		SSHHost:              "195.245.242.9",
+		SSHPort:              22,
+		SSHUser:              "root",
+		AllowTCP:             true,
+		AllowUDP:             true,
+		HMACSecretEncrypted:  encryptedWithOldKey,
+		HMACSecretConfigured: true,
+		HMACSecretSource:     "backend",
+		Status:               "online",
+		CreatedAt:            time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC),
+		UpdatedAt:            time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC),
+	}
+	server := NewServer(cfg, slog.Default(), "0.7.7-test", store)
+	mux := http.NewServeMux()
+	server.RegisterRoutes(mux)
+
+	operatorCookie := loginPanel(t, mux, "ops", "operator-password")
+	rec := serveJSONWithCookie(mux, http.MethodGet, "/api/panel/nodes/node-hk-01/hmac-secret", "", operatorCookie)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("operator status = %d, want %d body=%s", rec.Code, http.StatusForbidden, rec.Body.String())
+	}
+
+	adminCookie := loginPanel(t, mux, "admin", "secret-password")
+	rec = serveJSONWithCookie(mux, http.MethodGet, "/api/panel/nodes/node-hk-01/hmac-secret", "", adminCookie)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get hmac status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var statusPayload struct {
+		HMACSecret NodeHMACSecretStatus `json:"hmac_secret"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&statusPayload); err != nil {
+		t.Fatalf("decode hmac status: %v", err)
+	}
+	if statusPayload.HMACSecret.Status != "decrypt_failed" || !statusPayload.HMACSecret.CanClear {
+		t.Fatalf("unexpected hmac status: %#v", statusPayload.HMACSecret)
+	}
+
+	syncReq := `{"hmac_secret":"panel-resynced-node-secret-123456"}`
+	rec = serveJSONWithCookie(mux, http.MethodPut, "/api/panel/nodes/node-hk-01/hmac-secret", syncReq, adminCookie)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("sync hmac status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "panel-resynced-node-secret-123456") {
+		t.Fatalf("sync response leaked hmac secret: %s", rec.Body.String())
+	}
+	var syncPayload struct {
+		Node       Node                 `json:"node"`
+		HMACSecret NodeHMACSecretStatus `json:"hmac_secret"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&syncPayload); err != nil {
+		t.Fatalf("decode sync payload: %v", err)
+	}
+	if syncPayload.HMACSecret.Status != "ok" || syncPayload.HMACSecret.SecretFingerprint == "" {
+		t.Fatalf("unexpected synced hmac status: %#v", syncPayload.HMACSecret)
+	}
+	if store.nodes["node-hk-01"].HMACSecretSource != "panel" {
+		t.Fatalf("hmac source = %q, want panel", store.nodes["node-hk-01"].HMACSecretSource)
+	}
+
+	rec = serveJSONWithCookie(mux, http.MethodDelete, "/api/panel/nodes/node-hk-01/hmac-secret", "", adminCookie)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("clear hmac status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if store.nodes["node-hk-01"].HMACSecretConfigured || store.nodes["node-hk-01"].HMACSecretEncrypted != "" {
+		t.Fatalf("hmac secret was not cleared: %#v", store.nodes["node-hk-01"])
+	}
+	if len(store.audit) < 2 {
+		t.Fatalf("audit entries = %d, want at least 2", len(store.audit))
+	}
+	if store.audit[len(store.audit)-2].Action != "panel.node.hmac_secret.sync" ||
+		store.audit[len(store.audit)-1].Action != "panel.node.hmac_secret.clear" {
+		t.Fatalf("unexpected audit actions: %#v", store.audit)
+	}
+	auditPayload, ok := store.audit[len(store.audit)-2].Request.(map[string]any)
+	if !ok || auditPayload["hmac_secret"] != "[redacted]" {
+		t.Fatalf("sync audit hmac was not redacted: %#v", store.audit[len(store.audit)-2].Request)
+	}
+}
+
 func TestPanelNodeRejectsMismatchedPathNodeID(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Security.BackendAPIKeys = []string{"panel-key"}
@@ -1913,6 +2016,35 @@ func (s *fakeNodeStore) UpsertNode(_ context.Context, node Node) (*Node, error) 
 	node.HMACSecretConfigured = strings.TrimSpace(node.HMACSecretEncrypted) != ""
 	node.UpdatedAt = now
 	s.nodes[node.NodeID] = node
+	return &node, nil
+}
+
+func (s *fakeNodeStore) SetNodeHMACSecret(_ context.Context, nodeID string, encryptedSecret string, source string, updatedAt time.Time) (*Node, error) {
+	node, ok := s.nodes[nodeID]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	node.HMACSecretEncrypted = strings.TrimSpace(encryptedSecret)
+	node.HMACSecretConfigured = node.HMACSecretEncrypted != ""
+	node.HMACSecretSource = strings.TrimSpace(source)
+	node.HMACSecretUpdatedAt = &updatedAt
+	node.UpdatedAt = updatedAt
+	s.nodes[nodeID] = node
+	return &node, nil
+}
+
+func (s *fakeNodeStore) ClearNodeHMACSecret(_ context.Context, nodeID string) (*Node, error) {
+	node, ok := s.nodes[nodeID]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	now := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
+	node.HMACSecretEncrypted = ""
+	node.HMACSecretConfigured = false
+	node.HMACSecretSource = ""
+	node.HMACSecretUpdatedAt = nil
+	node.UpdatedAt = now
+	s.nodes[nodeID] = node
 	return &node, nil
 }
 

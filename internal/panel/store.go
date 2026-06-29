@@ -40,6 +40,8 @@ type NodeStore interface {
 	ListNodes(ctx context.Context, filter NodeListFilter) ([]Node, error)
 	GetNode(ctx context.Context, nodeID string) (*Node, error)
 	UpsertNode(ctx context.Context, node Node) (*Node, error)
+	SetNodeHMACSecret(ctx context.Context, nodeID string, encryptedSecret string, source string, updatedAt time.Time) (*Node, error)
+	ClearNodeHMACSecret(ctx context.Context, nodeID string) (*Node, error)
 	DeleteNode(ctx context.Context, nodeID string) error
 	UpsertPolicyRevision(ctx context.Context, input PolicyRevisionInput) (*PolicyRevision, error)
 	ListPolicyRevisions(ctx context.Context, limit int) ([]PolicyRevision, error)

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import {
   changeCurrentPassword,
+  clearNodeHMACSecret,
   createDeployTask,
   createNode,
   createRepairAdminTask,
@@ -32,6 +33,7 @@ import {
   getNodeConnectivityProbe,
   getNodeCredential,
   getNodeDiagnostics,
+  getNodeHMACSecretStatus,
   getNodeNetworkDiagnostics,
   getNodeSyncStatus,
   listNodeReports,
@@ -46,6 +48,7 @@ import {
   saveNodeCredential,
   setNodeDesiredPolicy,
   setPanelAccessToken,
+  syncNodeHMACSecret,
   testNodeCredential,
   updateNode
 } from "./api";
@@ -57,6 +60,7 @@ import { LoginScreen } from "./components/LoginScreen";
 import { NodeDetailDrawer } from "./components/NodeDetailDrawer";
 import { NodeDiagnosticsModal } from "./components/NodeDiagnosticsModal";
 import { NodeFormModal } from "./components/NodeFormModal";
+import { NodeHMACSecretModal } from "./components/NodeHMACSecretModal";
 import { NodeTable } from "./components/NodeTable";
 import { PolicyManagementPanel } from "./components/PolicyManagementPanel";
 import { SyncPolicyModal } from "./components/SyncPolicyModal";
@@ -73,6 +77,8 @@ import type {
   NodeCredential,
   NodeCredentialInput,
   NodeConnectivityProbeResponse,
+  NodeHMACSecretInput,
+  NodeHMACSecretStatus,
   NodeInput,
   NodeReport,
   NodeDiagnosticsResponse,
@@ -186,6 +192,12 @@ export default function App() {
   const [savingCredential, setSavingCredential] = useState(false);
   const [deletingCredential, setDeletingCredential] = useState(false);
   const [testingCredential, setTestingCredential] = useState(false);
+  const [hmacSecretNode, setHMACSecretNode] = useState<PanelNode | undefined>();
+  const [hmacSecretStatus, setHMACSecretStatus] = useState<NodeHMACSecretStatus | null>(null);
+  const [hmacSecretOpen, setHMACSecretOpen] = useState(false);
+  const [hmacSecretLoading, setHMACSecretLoading] = useState(false);
+  const [hmacSecretSyncing, setHMACSecretSyncing] = useState(false);
+  const [hmacSecretClearing, setHMACSecretClearing] = useState(false);
   const [taskLogOpen, setTaskLogOpen] = useState(false);
   const [taskLogTask, setTaskLogTask] = useState<NodeTask | undefined>();
   const [taskLogs, setTaskLogs] = useState<NodeTaskLog[]>([]);
@@ -240,6 +252,9 @@ export default function App() {
     setDeployOpen(false);
     setUpdateOpen(false);
     setCredentialOpen(false);
+    setHMACSecretOpen(false);
+    setHMACSecretNode(undefined);
+    setHMACSecretStatus(null);
     setTaskLogOpen(false);
     setDiagnosticOpen(false);
     setDiagnosticNode(undefined);
@@ -442,6 +457,88 @@ export default function App() {
     },
     [canManage, messageAPI, resetWorkspace]
   );
+
+  const refreshHMACSecretStatus = async (nodeID?: string) => {
+    const targetNodeID = nodeID || hmacSecretNode?.node_id;
+    if (!targetNodeID || !ensureManage()) {
+      return;
+    }
+    setHMACSecretLoading(true);
+    try {
+      const response = await getNodeHMACSecretStatus(SESSION_API_KEY, targetNodeID);
+      setHMACSecretStatus(response.hmac_secret);
+    } catch (err) {
+      handlePanelError(err);
+    } finally {
+      setHMACSecretLoading(false);
+    }
+  };
+
+  const openHMACSecret = (node: PanelNode) => {
+    if (!ensureManage()) {
+      return;
+    }
+    setHMACSecretNode(node);
+    setHMACSecretStatus(null);
+    setHMACSecretOpen(true);
+    void refreshHMACSecretStatus(node.node_id);
+  };
+
+  const applyUpdatedNode = (node?: PanelNode) => {
+    if (!node) {
+      return;
+    }
+    setNodes((current) => current.map((item) => (item.node_id === node.node_id ? node : item)));
+    if (detailNode?.node_id === node.node_id) {
+      setDetailNode(node);
+    }
+    if (hmacSecretNode?.node_id === node.node_id) {
+      setHMACSecretNode(node);
+    }
+  };
+
+  const submitHMACSecret = async (input: NodeHMACSecretInput) => {
+    if (!hmacSecretNode || !ensureManage()) {
+      return;
+    }
+    setHMACSecretSyncing(true);
+    try {
+      const response = await syncNodeHMACSecret(SESSION_API_KEY, hmacSecretNode.node_id, input);
+      setHMACSecretStatus(response.hmac_secret);
+      applyUpdatedNode(response.node);
+      messageAPI.success("节点 HMAC Secret 已重新同步");
+      await loadNodes();
+      if (detailOpen && detailNode?.node_id === hmacSecretNode.node_id) {
+        await loadNodeDetail(hmacSecretNode.node_id);
+      }
+    } catch (err) {
+      messageAPI.error(authErrorText(err));
+      throw err;
+    } finally {
+      setHMACSecretSyncing(false);
+    }
+  };
+
+  const clearHMACSecret = async () => {
+    if (!hmacSecretNode || !ensureManage()) {
+      return;
+    }
+    setHMACSecretClearing(true);
+    try {
+      const response = await clearNodeHMACSecret(SESSION_API_KEY, hmacSecretNode.node_id);
+      setHMACSecretStatus(response.hmac_secret);
+      applyUpdatedNode(response.node);
+      messageAPI.success("节点 HMAC Secret 加密副本已清空");
+      await loadNodes();
+      if (detailOpen && detailNode?.node_id === hmacSecretNode.node_id) {
+        await loadNodeDetail(hmacSecretNode.node_id);
+      }
+    } catch (err) {
+      messageAPI.error(authErrorText(err));
+    } finally {
+      setHMACSecretClearing(false);
+    }
+  };
 
   const openDetail = (node: PanelNode) => {
     setDetailNode(node);
@@ -995,6 +1092,7 @@ export default function App() {
                 canManage={canManage}
                 onView={openDetail}
                 onDiagnose={(node) => void openDiagnostics(node)}
+                onHMACSecret={openHMACSecret}
                 onEdit={openEdit}
                 onApplyPolicy={openApplyPolicy}
                 onDelete={removeNode}
@@ -1043,6 +1141,18 @@ export default function App() {
         onSubmit={submitCredential}
         onDelete={removeCredential}
       />
+      <NodeHMACSecretModal
+        open={hmacSecretOpen}
+        node={hmacSecretNode}
+        status={hmacSecretStatus}
+        loading={hmacSecretLoading}
+        syncing={hmacSecretSyncing}
+        clearing={hmacSecretClearing}
+        onCancel={() => setHMACSecretOpen(false)}
+        onRefresh={() => void refreshHMACSecretStatus()}
+        onSync={submitHMACSecret}
+        onClear={clearHMACSecret}
+      />
       <NodeDetailDrawer
         node={detailNode}
         open={detailOpen}
@@ -1055,6 +1165,7 @@ export default function App() {
         testingCredential={testingCredential}
         onClose={() => setDetailOpen(false)}
         onRefresh={refreshDetail}
+        onOpenHMACSecret={openHMACSecret}
         onOpenCredential={openCredential}
         onTestCredential={testCredential}
         onDeploy={openDeploy}

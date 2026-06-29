@@ -296,3 +296,19 @@ JWT claims 建议：
 
 SSH 凭据属于控制面板运维能力，保存在 `panel_node_credentials`，同样是加密字段。业务后台不要用 SQL 写明文密码，建议由控制面板页面维护。
 
+### 5. 控制面板显示 decrypt secret failed 怎么处理？
+
+这表示控制面板库里的 `panel_nodes.hmac_secret_encrypted` 不是当前 Go 后端能正常解密的密文。常见原因：
+
+- 曾经把明文 `hmac_secret` 直接写进了 `hmac_secret_encrypted`。
+- 更换过 `panel.yaml` 的 `security.master_key`，旧密文无法用新 master key 解密。
+- 导入/迁移数据库时截断或污染了密文字段。
+
+推荐处理方式：
+
+1. 业务后台确认自己保存的节点明文 `hmac_secret` 还在。
+2. 控制面板管理员进入节点列表或节点详情，点击“节点密钥”。
+3. 如果状态是 `decrypt_failed` 或 `unsupported_format`，在弹窗里重新同步业务后台保存的明文 `hmac_secret`。
+4. 同步成功后重新部署节点，或者确保节点配置里的 `auth.hmac_secret` 与业务后台保存的同一份密钥一致。
+
+不要再用 SQL 直接写 `panel_nodes.hmac_secret_encrypted` 明文。确实需要清空损坏副本时，可以先在面板“节点密钥”弹窗执行清空，再由业务后台接口重新同步。

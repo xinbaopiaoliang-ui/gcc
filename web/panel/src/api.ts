@@ -37,6 +37,8 @@ import type {
   NodeReportsResponse,
   NodeConnectivityProbeResponse,
   NodeDiagnosticsResponse,
+  NodeHMACSecretInput,
+  NodeHMACSecretResponse,
   NodeNetworkDiagnosticsResponse,
   NodeResponse,
   NodeSyncStatusResponse,
@@ -344,6 +346,27 @@ export async function updateNode(apiKey: string, nodeID: string, input: NodeInpu
 
 export async function deleteNode(apiKey: string, nodeID: string): Promise<{ status: string }> {
   return request<{ status: string }>(`/api/panel/nodes/${encodeURIComponent(nodeID)}`, apiKey, {
+    method: "DELETE"
+  });
+}
+
+export async function getNodeHMACSecretStatus(apiKey: string, nodeID: string): Promise<NodeHMACSecretResponse> {
+  return request<NodeHMACSecretResponse>(`/api/panel/nodes/${encodeURIComponent(nodeID)}/hmac-secret`, apiKey);
+}
+
+export async function syncNodeHMACSecret(
+  apiKey: string,
+  nodeID: string,
+  input: NodeHMACSecretInput
+): Promise<NodeHMACSecretResponse> {
+  return request<NodeHMACSecretResponse>(`/api/panel/nodes/${encodeURIComponent(nodeID)}/hmac-secret`, apiKey, {
+    method: "PUT",
+    body: JSON.stringify(input)
+  });
+}
+
+export async function clearNodeHMACSecret(apiKey: string, nodeID: string): Promise<NodeHMACSecretResponse> {
+  return request<NodeHMACSecretResponse>(`/api/panel/nodes/${encodeURIComponent(nodeID)}/hmac-secret`, apiKey, {
     method: "DELETE"
   });
 }

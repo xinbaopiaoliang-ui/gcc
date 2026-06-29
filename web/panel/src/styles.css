@@ -1703,6 +1703,18 @@ select {
   text-align: center;
 }
 
+.hmac-secret-panel {
+  width: 100%;
+}
+
+.hmac-secret-panel .ant-descriptions {
+  width: 100%;
+}
+
+.hmac-secret-panel .ant-form-item {
+  margin-bottom: 0;
+}
+
 .system-check-panel {
   min-height: 560px;
   padding: 0;

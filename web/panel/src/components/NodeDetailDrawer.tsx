@@ -85,6 +85,7 @@ export function NodeDetailDrawer({
   testingCredential,
   onClose,
   onRefresh,
+  onOpenHMACSecret,
   onOpenCredential,
   onTestCredential,
   onDeploy,
@@ -104,6 +105,7 @@ export function NodeDetailDrawer({
   testingCredential: boolean;
   onClose: () => void;
   onRefresh: () => void;
+  onOpenHMACSecret: (node: PanelNode) => void;
   onOpenCredential: (node: PanelNode) => void;
   onTestCredential: (node: PanelNode) => void;
   onDeploy: (node: PanelNode) => void;
@@ -224,6 +226,9 @@ export function NodeDetailDrawer({
               <>
                 <Button size="small" icon={<KeyRound size={14} />} onClick={() => onOpenCredential(node)}>
                   凭据
+                </Button>
+                <Button size="small" icon={<KeyRound size={14} />} onClick={() => onOpenHMACSecret(node)}>
+                  节点密钥
                 </Button>
                 <Button
                   size="small"

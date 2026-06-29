@@ -428,3 +428,76 @@ Authorization: Bearer <panel_jwt>
 - `key` 只交给业务后台保存，用于调用 `/api/backend/*`。
 - 不要把 `key` 下发给客户端。
 - 不要把 `key` 写入节点配置；节点使用的是自己的 `auth.hmac_secret` 和 `panel.api_key`。
+
+## 面板管理员修复节点 HMAC Secret
+
+适用版本：v0.7.7 起。
+
+这些接口是控制面板管理员接口，使用面板登录后的 Bearer JWT，不使用 `backend_api_key`。它们用于处理节点出现 `decrypt secret failed`、`unsupported encrypted secret format`、业务后台曾把明文误写到 `hmac_secret_encrypted`、或控制面板 `security.master_key` 更换后旧密文无法解密的场景。
+
+### 查看节点密钥状态
+
+```http
+GET /api/panel/nodes/{node_id}/hmac-secret
+Authorization: Bearer <panel_jwt>
+```
+
+响应示例：
+
+```json
+{
+  "hmac_secret": {
+    "node_id": "hk-01",
+    "configured": true,
+    "status": "decrypt_failed",
+    "message": "节点 HMAC Secret 加密副本无法解密，请重新同步或清空后由业务后台同步",
+    "source": "backend",
+    "can_clear": true,
+    "can_sync": true
+  }
+}
+```
+
+`status` 含义：
+
+| status | 含义 |
+| --- | --- |
+| `missing` | 控制面板没有保存该节点密钥。 |
+| `ok` | 已保存并可解密，响应会返回短 `secret_fingerprint`，不会返回明文。 |
+| `decrypt_failed` | 已保存但无法用当前 `security.master_key` 解密。 |
+| `unsupported_format` | 字段内容不是控制面板支持的加密格式，常见原因是误写入明文。 |
+| `invalid` | 解密后密钥为空或长度不足。 |
+| `secret_box_unavailable` | 控制面板未正确配置 `security.master_key`。 |
+
+### 重新同步节点密钥
+
+```http
+PUT /api/panel/nodes/{node_id}/hmac-secret
+Authorization: Bearer <panel_jwt>
+Content-Type: application/json
+
+{
+  "hmac_secret": "业务后台保存的节点明文 hmac_secret"
+}
+```
+
+说明：
+
+- `hmac_secret` 至少 16 个字符，推荐每个节点独立随机 32 字节以上。
+- 控制面板只保存加密副本，响应和审计日志都不会返回明文。
+- 同步成功后需要重新部署节点或重新写入节点配置，保证节点 `/etc/gaccel-node/config.yaml` 里的 `auth.hmac_secret` 与业务后台签 token 使用的密钥一致。
+
+### 清空损坏密钥副本
+
+```http
+DELETE /api/panel/nodes/{node_id}/hmac-secret
+Authorization: Bearer <panel_jwt>
+```
+
+清空后该节点会变成“未配置密钥”状态。后续应由业务后台重新调用 `/api/backend/nodes` 同步 `hmac_secret`，或者管理员在面板“节点密钥”弹窗里重新同步。
+
+使用边界：
+
+- 客户端永远不访问这些接口，也不能拿到 `hmac_secret`。
+- 业务后台仍然是客户端 token 的签发方，必须保存每个节点的明文 `hmac_secret`。
+- 面板这个入口是运维修复入口，不替代业务后台的节点主数据管理。

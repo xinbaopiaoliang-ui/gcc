@@ -139,6 +139,35 @@ export interface NodeResponse {
   node: PanelNode;
 }
 
+export type NodeHMACSecretStatusValue =
+  | "missing"
+  | "ok"
+  | "decrypt_failed"
+  | "unsupported_format"
+  | "invalid"
+  | "secret_box_unavailable";
+
+export interface NodeHMACSecretStatus {
+  node_id: string;
+  configured: boolean;
+  status: NodeHMACSecretStatusValue;
+  message: string;
+  source?: string;
+  updated_at?: string;
+  secret_fingerprint?: string;
+  can_clear: boolean;
+  can_sync: boolean;
+}
+
+export interface NodeHMACSecretInput {
+  hmac_secret: string;
+}
+
+export interface NodeHMACSecretResponse {
+  node?: PanelNode;
+  hmac_secret: NodeHMACSecretStatus;
+}
+
 export type NodeTaskStatus = "pending" | "running" | "success" | "failed" | "cancelled";
 
 export interface NodeReport {

@@ -378,6 +378,60 @@ ON DUPLICATE KEY UPDATE
 	return s.GetNode(ctx, node.NodeID)
 }
 
+func (s *MySQLStore) SetNodeHMACSecret(ctx context.Context, nodeID string, encryptedSecret string, source string, updatedAt time.Time) (*Node, error) {
+	nodeID = strings.TrimSpace(nodeID)
+	encryptedSecret = strings.TrimSpace(encryptedSecret)
+	source = strings.TrimSpace(source)
+	if source == "" {
+		source = "panel"
+	}
+	if encryptedSecret == "" {
+		return nil, errors.New("encrypted hmac secret is required")
+	}
+	result, err := s.db.ExecContext(ctx, `
+UPDATE panel_nodes
+SET hmac_secret_encrypted = ?,
+    hmac_secret_source = ?,
+    hmac_secret_updated_at = ?,
+    updated_at = CURRENT_TIMESTAMP
+WHERE node_id = ?`,
+		encryptedSecret, source, updatedAt, nodeID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if affected == 0 {
+		return nil, ErrNotFound
+	}
+	return s.GetNode(ctx, nodeID)
+}
+
+func (s *MySQLStore) ClearNodeHMACSecret(ctx context.Context, nodeID string) (*Node, error) {
+	nodeID = strings.TrimSpace(nodeID)
+	result, err := s.db.ExecContext(ctx, `
+UPDATE panel_nodes
+SET hmac_secret_encrypted = NULL,
+    hmac_secret_source = '',
+    hmac_secret_updated_at = NULL,
+    updated_at = CURRENT_TIMESTAMP
+WHERE node_id = ?`, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if affected == 0 {
+		return nil, ErrNotFound
+	}
+	return s.GetNode(ctx, nodeID)
+}
+
 func (s *MySQLStore) DeleteNode(ctx context.Context, nodeID string) error {
 	result, err := s.db.ExecContext(ctx, "DELETE FROM panel_nodes WHERE node_id = ?", nodeID)
 	if err != nil {

@@ -263,6 +263,13 @@ func (s *Server) handlePanelNodeSubresource(w http.ResponseWriter, r *http.Reque
 			}
 			s.handleNodeCredential(w, r, parts[0])
 			return
+		case "hmac-secret":
+			if !panelUserHasRole(user, PanelUserRoleAdmin) {
+				writeError(w, http.StatusForbidden, "forbidden", "permission denied")
+				return
+			}
+			s.handleNodeHMACSecret(w, r, parts[0], user)
+			return
 		case "deploy":
 			if !panelUserHasRole(user, PanelUserRoleAdmin) {
 				writeError(w, http.StatusForbidden, "forbidden", "permission denied")

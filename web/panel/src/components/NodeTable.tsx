@@ -1,6 +1,6 @@
 import { Button, Popconfirm, Space, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { Activity, Edit3, Eye, Send, Trash2 } from "lucide-react";
+import { Activity, Edit3, Eye, KeyRound, Send, Trash2 } from "lucide-react";
 import { StatusBadge } from "./StatusBadge";
 import type { PanelNode } from "../types";
 
@@ -31,6 +31,7 @@ export function NodeTable({
   canManage = true,
   onView,
   onDiagnose,
+  onHMACSecret,
   onEdit,
   onApplyPolicy,
   onDelete
@@ -40,6 +41,7 @@ export function NodeTable({
   canManage?: boolean;
   onView: (node: PanelNode) => void;
   onDiagnose: (node: PanelNode) => void;
+  onHMACSecret: (node: PanelNode) => void;
   onEdit: (node: PanelNode) => void;
   onApplyPolicy: (node: PanelNode) => void;
   onDelete: (node: PanelNode) => void;
@@ -162,7 +164,7 @@ export function NodeTable({
     {
       title: "操作",
       fixed: "right",
-      width: canManage ? 204 : 104,
+      width: canManage ? 244 : 104,
       render: (_, node) => (
         <Space size={4}>
           <Tooltip title="查看">
@@ -173,6 +175,9 @@ export function NodeTable({
           </Tooltip>
           {canManage && (
             <>
+              <Tooltip title="节点密钥">
+                <Button type="text" icon={<KeyRound size={16} />} onClick={() => onHMACSecret(node)} />
+              </Tooltip>
               <Tooltip title="编辑">
                 <Button type="text" icon={<Edit3 size={16} />} onClick={() => onEdit(node)} />
               </Tooltip>

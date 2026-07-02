@@ -60,9 +60,9 @@ download_optional() {
   url="$1"
   dest="$2"
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$url" -o "$dest"
+    curl -fsSL "$url" -o "$dest" 2>/dev/null
   elif command -v wget >/dev/null 2>&1; then
-    wget -qO "$dest" "$url"
+    wget -qO "$dest" "$url" 2>/dev/null
   else
     echo "missing required command: curl or wget" >&2
     exit 1

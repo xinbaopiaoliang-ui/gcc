@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"gaccel-node/internal/panelcommand"
+	"gaccel-node/internal/systemstats"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -287,6 +288,9 @@ func (s *MySQLStore) ListNodes(ctx context.Context, filter NodeListFilter) ([]No
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	if err := s.attachLatestSystemSnapshots(ctx, nodes); err != nil {
+		return nil, err
+	}
 	return nodes, nil
 }
 
@@ -299,7 +303,75 @@ func (s *MySQLStore) GetNode(ctx context.Context, nodeID string) (*Node, error) 
 		}
 		return nil, err
 	}
+	nodes := []Node{node}
+	if err := s.attachLatestSystemSnapshots(ctx, nodes); err != nil {
+		return nil, err
+	}
+	node = nodes[0]
 	return &node, nil
+}
+
+func (s *MySQLStore) attachLatestSystemSnapshots(ctx context.Context, nodes []Node) error {
+	if len(nodes) == 0 {
+		return nil
+	}
+	placeholders := make([]string, 0, len(nodes))
+	args := make([]any, 0, len(nodes))
+	indexByNodeID := make(map[string]int, len(nodes))
+	for i := range nodes {
+		nodeID := strings.TrimSpace(nodes[i].NodeID)
+		if nodeID == "" {
+			continue
+		}
+		placeholders = append(placeholders, "?")
+		args = append(args, nodeID)
+		indexByNodeID[nodeID] = i
+	}
+	if len(args) == 0 {
+		return nil
+	}
+	query := `
+SELECT node_id, raw_json
+FROM (
+  SELECT node_id, raw_json, ROW_NUMBER() OVER (PARTITION BY node_id ORDER BY reported_at DESC, id DESC) AS rn
+  FROM panel_node_reports
+  WHERE node_id IN (` + strings.Join(placeholders, ",") + `)
+) latest
+WHERE rn = 1`
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var nodeID string
+		var raw string
+		if err := rows.Scan(&nodeID, &raw); err != nil {
+			return err
+		}
+		idx, ok := indexByNodeID[nodeID]
+		if !ok {
+			continue
+		}
+		snapshot := extractSystemSnapshot([]byte(raw))
+		if snapshot != nil {
+			nodes[idx].LatestSystem = snapshot
+		}
+	}
+	return rows.Err()
+}
+
+func extractSystemSnapshot(raw []byte) *systemstats.Snapshot {
+	if len(raw) == 0 {
+		return nil
+	}
+	var payload struct {
+		System *systemstats.Snapshot `json:"system"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil || payload.System == nil || !payload.System.HasData() {
+		return nil
+	}
+	return payload.System
 }
 
 func (s *MySQLStore) UpsertNode(ctx context.Context, node Node) (*Node, error) {

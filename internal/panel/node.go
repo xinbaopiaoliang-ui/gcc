@@ -7,43 +7,46 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"gaccel-node/internal/systemstats"
 )
 
 var nodeIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,95}$`)
 
 type Node struct {
-	ID                    uint64            `json:"id"`
-	NodeID                string            `json:"node_id"`
-	Name                  string            `json:"name"`
-	Region                string            `json:"region"`
-	Country               string            `json:"country"`
-	Provider              string            `json:"provider"`
-	LineType              string            `json:"line_type"`
-	EndpointHost          string            `json:"endpoint_host"`
-	EndpointPort          int               `json:"endpoint_port"`
-	ALPN                  string            `json:"alpn"`
-	AdminHost             string            `json:"admin_host"`
-	AdminPort             int               `json:"admin_port"`
-	SSHHost               string            `json:"ssh_host"`
-	SSHPort               int               `json:"ssh_port"`
-	SSHUser               string            `json:"ssh_user"`
-	AllowTCP              bool              `json:"allow_tcp"`
-	AllowUDP              bool              `json:"allow_udp"`
-	HMACSecretConfigured  bool              `json:"hmac_secret_configured"`
-	HMACSecretSource      string            `json:"hmac_secret_source,omitempty"`
-	HMACSecretUpdatedAt   *time.Time        `json:"hmac_secret_updated_at,omitempty"`
-	HMACSecretEncrypted   string            `json:"-"`
-	Tags                  []string          `json:"tags"`
-	Labels                map[string]string `json:"labels"`
-	Status                string            `json:"status"`
-	CurrentVersion        string            `json:"current_version"`
-	DesiredVersion        string            `json:"desired_version"`
-	CurrentPolicyRevision string            `json:"current_policy_revision"`
-	DesiredPolicyRevision string            `json:"desired_policy_revision"`
-	LastReportAt          *time.Time        `json:"last_report_at,omitempty"`
-	LastError             string            `json:"last_error"`
-	CreatedAt             time.Time         `json:"created_at"`
-	UpdatedAt             time.Time         `json:"updated_at"`
+	ID                    uint64                `json:"id"`
+	NodeID                string                `json:"node_id"`
+	Name                  string                `json:"name"`
+	Region                string                `json:"region"`
+	Country               string                `json:"country"`
+	Provider              string                `json:"provider"`
+	LineType              string                `json:"line_type"`
+	EndpointHost          string                `json:"endpoint_host"`
+	EndpointPort          int                   `json:"endpoint_port"`
+	ALPN                  string                `json:"alpn"`
+	AdminHost             string                `json:"admin_host"`
+	AdminPort             int                   `json:"admin_port"`
+	SSHHost               string                `json:"ssh_host"`
+	SSHPort               int                   `json:"ssh_port"`
+	SSHUser               string                `json:"ssh_user"`
+	AllowTCP              bool                  `json:"allow_tcp"`
+	AllowUDP              bool                  `json:"allow_udp"`
+	HMACSecretConfigured  bool                  `json:"hmac_secret_configured"`
+	HMACSecretSource      string                `json:"hmac_secret_source,omitempty"`
+	HMACSecretUpdatedAt   *time.Time            `json:"hmac_secret_updated_at,omitempty"`
+	HMACSecretEncrypted   string                `json:"-"`
+	LatestSystem          *systemstats.Snapshot `json:"latest_system,omitempty"`
+	Tags                  []string              `json:"tags"`
+	Labels                map[string]string     `json:"labels"`
+	Status                string                `json:"status"`
+	CurrentVersion        string                `json:"current_version"`
+	DesiredVersion        string                `json:"desired_version"`
+	CurrentPolicyRevision string                `json:"current_policy_revision"`
+	DesiredPolicyRevision string                `json:"desired_policy_revision"`
+	LastReportAt          *time.Time            `json:"last_report_at,omitempty"`
+	LastError             string                `json:"last_error"`
+	CreatedAt             time.Time             `json:"created_at"`
+	UpdatedAt             time.Time             `json:"updated_at"`
 }
 
 type NodeInput struct {

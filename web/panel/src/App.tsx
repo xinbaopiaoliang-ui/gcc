@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Button, Input, Layout, Select, Space, Spin, Statistic, Tag, Typography, message } from "antd";
+import { Alert, Button, Input, Layout, Select, Space, Spin, Tag, Typography, message } from "antd";
 import {
   BarChart3,
   Clock3,
@@ -100,6 +100,40 @@ const SESSION_API_KEY = "";
 
 type AppView = "nodes" | "traffic" | "sessions" | "users" | "policies" | "system";
 
+const APP_VIEW_STORAGE_KEY = "gaccel_panel_active_view";
+const APP_VIEWS: AppView[] = ["nodes", "traffic", "sessions", "users", "policies", "system"];
+
+function parseAppView(value?: string | null) {
+  const view = value?.replace(/^#/, "").trim();
+  return APP_VIEWS.includes(view as AppView) ? (view as AppView) : null;
+}
+
+function readInitialAppView(): AppView {
+  if (typeof window === "undefined") return "nodes";
+  const hashView = parseAppView(window.location.hash);
+  if (hashView) return hashView;
+  const queryView = parseAppView(new URLSearchParams(window.location.search).get("view"));
+  if (queryView) return queryView;
+  try {
+    return parseAppView(window.localStorage.getItem(APP_VIEW_STORAGE_KEY)) ?? "nodes";
+  } catch {
+    return "nodes";
+  }
+}
+
+function persistAppView(view: AppView) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(APP_VIEW_STORAGE_KEY, view);
+  } catch {
+    // 浏览器隐私模式可能禁用 localStorage，URL hash 仍可保证当前页刷新恢复。
+  }
+  const nextHash = `#${view}`;
+  if (window.location.hash !== nextHash) {
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${nextHash}`);
+  }
+}
+
 function isUnauthorized(error: unknown) {
   return error instanceof PanelAPIError && error.status === 401;
 }
@@ -143,7 +177,24 @@ function pageTitle(view: AppView) {
     case "system":
       return "系统自检";
     default:
-      return "节点控制面板";
+      return "服务器管理";
+  }
+}
+
+function pageSubtitle(view: AppView) {
+  switch (view) {
+    case "traffic":
+      return "汇总节点流量、转发事件和联调状态，定位客户端慢、断连和策略未生效。";
+    case "sessions":
+      return "查看客户端连接开始、认证、结束和心跳状态。";
+    case "users":
+      return "管理控制面板账号、角色和登录权限。";
+    case "policies":
+      return "维护业务后台生成的策略版本，并同步到指定节点。";
+    case "system":
+      return "检查控制面板配置、数据库、登录安全和部署目录。";
+    default:
+      return "用于查看节点健康、同步状态和转发能力，并从运维侧发起节点操作。";
   }
 }
 
@@ -157,7 +208,7 @@ export default function App() {
   const [authChecking, setAuthChecking] = useState(true);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState("");
-  const [activeView, setActiveView] = useState<AppView>("nodes");
+  const [activeView, setActiveView] = useState<AppView>(() => readInitialAppView());
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
   const [passwordError, setPasswordError] = useState("");
@@ -328,6 +379,21 @@ export default function App() {
   }, [loadNodes]);
 
   useEffect(() => {
+    persistAppView(activeView);
+  }, [activeView]);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const nextView = parseAppView(window.location.hash);
+      if (nextView) {
+        setActiveView(nextView);
+      }
+    };
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
+
+  useEffect(() => {
     if (currentUser && currentUser.role !== "admin" && activeView !== "nodes") {
       setActiveView("nodes");
     }
@@ -362,7 +428,6 @@ export default function App() {
       const response = await login(input);
       setPanelAccessToken(response.access_token || response.token);
       setCurrentUser(response.user);
-      setActiveView("nodes");
       messageAPI.success("登录成功");
     } catch (err) {
       setLoginError(isUnauthorized(err) ? "账号或密码不正确" : authErrorText(err));
@@ -917,8 +982,14 @@ export default function App() {
     <Layout className="app-root">
       {contextHolder}
       <aside className="side-rail">
-        <div className="rail-logo">
-          <Server size={22} />
+        <div className="rail-brand">
+          <div className="rail-logo">
+            <Server size={20} />
+          </div>
+          <div className="rail-brand-copy">
+            <strong>GACCEL</strong>
+            <span>节点控制台</span>
+          </div>
         </div>
         <button
           className={`rail-item ${activeView === "nodes" ? "active" : ""}`}
@@ -927,6 +998,7 @@ export default function App() {
           onClick={() => setActiveView("nodes")}
         >
           <Signal size={18} />
+          <span>服务器管理</span>
         </button>
         <button
           className={`rail-item ${activeView === "traffic" ? "active" : ""}`}
@@ -935,6 +1007,7 @@ export default function App() {
           onClick={() => setActiveView("traffic")}
         >
           <BarChart3 size={18} />
+          <span>流量观测</span>
         </button>
         <button
           className={`rail-item ${activeView === "sessions" ? "active" : ""}`}
@@ -943,6 +1016,7 @@ export default function App() {
           onClick={() => setActiveView("sessions")}
         >
           <Clock3 size={18} />
+          <span>客户端会话</span>
         </button>
         {canManage && (
           <button
@@ -952,6 +1026,7 @@ export default function App() {
             onClick={() => setActiveView("policies")}
           >
             <Route size={18} />
+            <span>策略配置</span>
           </button>
         )}
         {canManage && (
@@ -962,6 +1037,7 @@ export default function App() {
             onClick={() => setActiveView("users")}
           >
             <UsersRound size={18} />
+            <span>账号权限</span>
           </button>
         )}
         {canManage && (
@@ -972,10 +1048,12 @@ export default function App() {
             onClick={() => setActiveView("system")}
           >
             <Wrench size={18} />
+            <span>系统自检</span>
           </button>
         )}
         <div className="rail-foot">
           <ShieldCheck size={18} />
+          <span>安全运行</span>
         </div>
       </aside>
 
@@ -984,6 +1062,7 @@ export default function App() {
           <div>
             <Text className="eyebrow">gaccel panel</Text>
             <Title level={2}>{pageTitle(activeView)}</Title>
+            <Text className="page-subtitle">{pageSubtitle(activeView)}</Text>
           </div>
           <Space className="user-box" align="center">
             <UserRound size={17} />
@@ -1018,40 +1097,81 @@ export default function App() {
           <SystemCheckPanel onRequestError={handlePanelError} />
         ) : (
           <>
-            <section className="metric-strip node-metric-strip">
-              <div className="metric-item">
-                <Statistic title="节点总数" value={nodes.length} />
+            <section className="server-overview">
+              <div className="server-stat-card">
+                <div>
+                  <Text>服务器总数</Text>
+                  <strong>{nodes.length}</strong>
+                </div>
+                <span className="server-stat-icon">
+                  <Server size={18} />
+                </span>
               </div>
-              <div className="metric-item">
-                <Statistic title="在线节点" value={metrics.online} />
+              <div className="server-stat-card">
+                <div>
+                  <Text>在线服务器</Text>
+                  <strong>{metrics.online}</strong>
+                </div>
+                <span className="server-stat-icon success">
+                  <Signal size={18} />
+                </span>
               </div>
-              <div className="metric-item">
-                <Statistic title="异常/离线" value={metrics.warning} />
+              <div className="server-stat-card">
+                <div>
+                  <Text>离线/失联</Text>
+                  <strong>{metrics.warning}</strong>
+                </div>
+                <span className="server-stat-icon warning">
+                  <ShieldCheck size={18} />
+                </span>
               </div>
-              <div className="metric-item">
-                <Statistic title="待更新版本" value={metrics.versionPending} />
+              <div className="server-stat-card">
+                <div>
+                  <Text>待更新版本</Text>
+                  <strong>{metrics.versionPending}</strong>
+                </div>
+                <span className="server-stat-icon">
+                  <RefreshCw size={18} />
+                </span>
               </div>
-              <div className="metric-item">
-                <Statistic title="待同步策略" value={metrics.policyPending} />
+              <div className="server-stat-card">
+                <div>
+                  <Text>待同步策略</Text>
+                  <strong>{metrics.policyPending}</strong>
+                </div>
+                <span className="server-stat-icon">
+                  <Route size={18} />
+                </span>
               </div>
-              <div className="metric-item wide">
-                <Statistic title="TCP / UDP" value={`${metrics.tcp} / ${metrics.udp}`} />
+              <div className="server-stat-card">
+                <div>
+                  <Text>TCP / UDP</Text>
+                  <strong>{`${metrics.tcp} / ${metrics.udp}`}</strong>
+                </div>
+                <span className="server-stat-icon success">
+                  <BarChart3 size={18} />
+                </span>
               </div>
             </section>
 
-            <main className="workbench">
-              <div className="toolbar">
-                <Space wrap>
+            <main className="server-workbench">
+              <div className="server-toolbar">
+                <Space wrap className="server-toolbar-left">
+                  {canManage && (
+                    <Button icon={<Plus size={16} />} onClick={openCreate}>
+                      添加服务器
+                    </Button>
+                  )}
                   <Input
-                    className="search-input"
+                    className="server-search-input"
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                     onPressEnter={() => void loadNodes()}
                     prefix={<Search size={16} />}
-                    placeholder="搜索节点、名称、入口"
+                    placeholder="搜索服务器名称、节点ID、入口..."
                   />
                   <Select
-                    className="filter-select"
+                    className="server-filter-select"
                     allowClear
                     value={status || undefined}
                     onChange={(value) => setStatus((value ?? "") as NodeStatus | "")}
@@ -1066,7 +1186,7 @@ export default function App() {
                     ]}
                   />
                   <Select
-                    className="filter-select"
+                    className="server-filter-select"
                     allowClear
                     showSearch
                     value={region || undefined}
@@ -1078,12 +1198,13 @@ export default function App() {
                     刷新
                   </Button>
                 </Space>
-                {canManage && (
-                  <Button type="primary" icon={<Plus size={16} />} onClick={openCreate}>
-                    新增节点
-                  </Button>
-                )}
+                <Space className="server-toolbar-summary" wrap>
+                  <Tag>在线：{metrics.online}/{nodes.length}</Tag>
+                  <Tag>异常：{metrics.warning}</Tag>
+                  <Tag>待同步：{metrics.policyPending}</Tag>
+                </Space>
               </div>
+              <Text className="server-toolbar-note">集中查看节点在线、上报、版本和策略状态；部署、更新、密钥和策略下发仍使用现有节点能力。</Text>
 
               {error && <Alert className="inline-alert" type="error" showIcon message={error} />}
               <NodeTable

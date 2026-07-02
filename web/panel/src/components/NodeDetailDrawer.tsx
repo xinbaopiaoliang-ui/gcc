@@ -1,6 +1,7 @@
 import { Alert, Button, Descriptions, Drawer, Empty, Space, Table, Tabs, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { FileText, KeyRound, RefreshCw, Rocket, Send, ServerCog, Terminal, UploadCloud } from "lucide-react";
+import { NodeLoadMetrics } from "./NodeLoadMetrics";
 import { StatusBadge } from "./StatusBadge";
 import type { NodeCredential, NodeReport, NodeSyncStatus, NodeTask, NodeTaskStatus, PanelNode } from "../types";
 
@@ -302,6 +303,14 @@ export function NodeDetailDrawer({
               <span>QUIC / TCP / UDP</span>
             </div>
           </div>
+
+          <section className="node-load-detail-panel">
+            <div>
+              <Text className="detail-kicker">节点负载</Text>
+              <strong>CPU / 内存 / 磁盘 / 网络</strong>
+            </div>
+            <NodeLoadMetrics system={node.latest_system} variant="detail" />
+          </section>
 
           {syncStatus ? (
             <section className="sync-status-panel">

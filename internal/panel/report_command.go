@@ -14,6 +14,7 @@ import (
 	"gaccel-node/internal/metrics"
 	"gaccel-node/internal/panelcommand"
 	"gaccel-node/internal/sessions"
+	"gaccel-node/internal/systemstats"
 )
 
 const (
@@ -37,6 +38,7 @@ type NodeReportPayload struct {
 	Server        ReportServerInfo             `json:"server"`
 	RoutePolicies ReportRoutePoliciesInfo      `json:"route_policies"`
 	Metrics       metrics.Snapshot             `json:"metrics"`
+	System        *systemstats.Snapshot        `json:"system,omitempty"`
 	Sessions      []sessions.Snapshot          `json:"sessions,omitempty"`
 	SessionEvents []sessions.Event             `json:"session_events,omitempty"`
 	PanelCommands []panelcommand.CommandResult `json:"panel_commands,omitempty"`

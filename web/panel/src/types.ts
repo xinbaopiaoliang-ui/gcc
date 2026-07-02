@@ -89,6 +89,7 @@ export interface PanelNode {
   ssh_user: string;
   allow_tcp: boolean;
   allow_udp: boolean;
+  latest_system?: NodeSystemSnapshot;
   hmac_secret_configured: boolean;
   hmac_secret_source?: string;
   hmac_secret_updated_at?: string;
@@ -103,6 +104,38 @@ export interface PanelNode {
   last_error: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface NodeSystemSnapshot {
+  cpu?: {
+    cores: number;
+    percent: number;
+  };
+  memory?: {
+    total_bytes: number;
+    used_bytes: number;
+    available_bytes: number;
+    used_percent: number;
+  };
+  disk?: {
+    path: string;
+    total_bytes: number;
+    used_bytes: number;
+    free_bytes: number;
+    used_percent: number;
+  };
+  network?: {
+    rx_bytes: number;
+    tx_bytes: number;
+    rx_rate_bytes_per_second: number;
+    tx_rate_bytes_per_second: number;
+    sample_seconds: number;
+  };
+  load_average?: {
+    one_minute: number;
+    five_minutes: number;
+    fifteen_minutes: number;
+  };
 }
 
 export interface NodeInput {

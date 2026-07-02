@@ -1,4 +1,4 @@
-gaccel-panel Go backend v0.7.2
+gaccel-panel Go backend v0.7.13
 
 Unzip this package under:
   /www/wwwroot/go
@@ -87,3 +87,8 @@ v0.7.1-v0.7.2 node diagnostics:
   probing. From the node diagnostics drawer, "Active Probe" checks DNS/IP reachability,
   Admin TCP, Admin /health, QUIC handshake, and a temporary HMAC-authenticated ping.
   This probe is read-only and does not expose node hmac_secret in API responses or logs.
+
+v0.7.13 node load metrics:
+  Nodes report system load in raw_json.system, including CPU, memory, disk and network
+  rate. The panel reads the latest report and exposes latest_system in node list/detail.
+  Existing databases do not need a new migration for this feature.

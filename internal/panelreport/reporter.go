@@ -13,6 +13,7 @@ import (
 	"gaccel-node/internal/metrics"
 	"gaccel-node/internal/panelcommand"
 	"gaccel-node/internal/sessions"
+	"gaccel-node/internal/systemstats"
 )
 
 type Reporter struct {
@@ -23,6 +24,7 @@ type Reporter struct {
 	version        string
 	client         *http.Client
 	commandResults CommandResultSnapshotter
+	system         *systemstats.Sampler
 }
 
 type CommandResultSnapshotter interface {
@@ -37,6 +39,7 @@ type Payload struct {
 	Server        ServerInfo                   `json:"server"`
 	RoutePolicies RoutePoliciesInfo            `json:"route_policies"`
 	Metrics       metrics.Snapshot             `json:"metrics"`
+	System        *systemstats.Snapshot        `json:"system,omitempty"`
 	Sessions      []sessions.Snapshot          `json:"sessions,omitempty"`
 	SessionEvents []sessions.Event             `json:"session_events,omitempty"`
 	PanelCommands []panelcommand.CommandResult `json:"panel_commands,omitempty"`
@@ -66,6 +69,7 @@ func New(cfg *config.Manager, logger *slog.Logger, collector *metrics.Collector,
 		version:        version,
 		client:         &http.Client{},
 		commandResults: resultSnapshotter,
+		system:         systemstats.NewSampler(),
 	}
 }
 
@@ -109,7 +113,11 @@ func (r *Reporter) report(parent context.Context, cfg *config.Config) error {
 		activeSessions = r.sessions.Snapshot()
 		sessionEvents = r.sessions.PendingEvents(2000)
 	}
-	payload := BuildPayloadWithSessions(cfg, r.collector.Snapshot(), activeSessions, sessionEvents, r.version, time.Now(), commandResults)
+	now := time.Now()
+	payload := BuildPayloadWithSessions(cfg, r.collector.Snapshot(), activeSessions, sessionEvents, r.version, now, commandResults)
+	if r.system != nil {
+		payload.System = r.system.Snapshot(now)
+	}
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return err

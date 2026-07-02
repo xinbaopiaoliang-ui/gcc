@@ -56,6 +56,19 @@ download() {
   fi
 }
 
+download_optional() {
+  url="$1"
+  dest="$2"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "$url" -o "$dest"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO "$dest" "$url"
+  else
+    echo "missing required command: curl or wget" >&2
+    exit 1
+  fi
+}
+
 need_root
 need_cmd uname
 need_cmd tar
@@ -77,7 +90,18 @@ ARCHIVE_PATTERN="gaccel-node_*_linux-${ARCH}.tar.gz"
 CHECKSUMS="${TMP_DIR}/SHA256SUMS"
 
 echo "Downloading gaccel-node ${DISPLAY_VERSION} for linux-${ARCH} from ${REPO}"
-download "${BASE_URL}/SHA256SUMS" "$CHECKSUMS"
+if ! download_optional "${BASE_URL}/SHA256SUMS" "$CHECKSUMS"; then
+  if [ "$VERSION" = "latest" ]; then
+    echo "download failed: SHA256SUMS" >&2
+    exit 1
+  fi
+  RAW_REF="${RAW_REF:-main}"
+  RAW_BASE_URL="https://raw.githubusercontent.com/${REPO}/${RAW_REF}/dist"
+  VERSION_CHECKSUMS="SHA256SUMS-${VERSION}"
+  echo "release download failed, falling back to ${RAW_BASE_URL}/${VERSION_CHECKSUMS}"
+  BASE_URL="$RAW_BASE_URL"
+  download "${BASE_URL}/${VERSION_CHECKSUMS}" "$CHECKSUMS"
+fi
 
 ARCHIVE_NAME="$(grep "linux-${ARCH}.tar.gz" "$CHECKSUMS" | awk '{print $2}' | head -n 1)"
 if [ -z "$ARCHIVE_NAME" ]; then

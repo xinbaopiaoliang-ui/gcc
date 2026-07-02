@@ -344,8 +344,13 @@ func (s *Server) renderNodeConfig(node Node, hmacSecret string, panelBaseURL str
 			"deny_multicast":      true,
 			"deny_cloud_metadata": true,
 			"allowed_udp_ports":   []string{"1-65535"},
-			"allowed_tcp_ports":   []string{"80", "443", "1935", "5222", "27000-65535"},
+			"allowed_tcp_ports":   []string{"1-65535"},
 			"blocked_tcp_ports":   []string{"22", "25", "3306", "5432", "6379"},
+		},
+		"route_policies": map[string]any{
+			"mode":     "client_decision",
+			"revision": "",
+			"policies": []any{},
 		},
 		"panel": panel,
 		"upgrade": map[string]any{

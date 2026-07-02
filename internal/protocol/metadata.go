@@ -83,3 +83,26 @@ func (m FlowMetadata) ValidateForNetwork(network string) error {
 	}
 	return nil
 }
+
+func (m FlowMetadata) ValidateClientDecisionForNetwork(network string) error {
+	network = strings.ToLower(strings.TrimSpace(network))
+	if m.Empty() {
+		return ErrMetadataRequired
+	}
+	if m.GameID == "" {
+		return errors.New("metadata.game_id is required")
+	}
+	if m.PolicyID == "" {
+		return errors.New("metadata.policy_id is required")
+	}
+	if m.Network == "" {
+		return errors.New("metadata.network is required")
+	}
+	if m.Network != network {
+		return fmt.Errorf("metadata.network %q does not match %q", m.Network, network)
+	}
+	if m.ClientConfigRevision == "" {
+		return errors.New("metadata.client_config_revision is required")
+	}
+	return nil
+}

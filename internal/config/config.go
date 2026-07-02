@@ -12,6 +12,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var legacyDefaultAllowedTCPPorts = []string{"80", "443", "1935", "5222", "27000-65535"}
+
 type Config struct {
 	Server        ServerConfig        `yaml:"server"`
 	Node          NodeConfig          `yaml:"node"`
@@ -72,6 +74,7 @@ type SecurityConfig struct {
 
 type RoutePoliciesConfig struct {
 	Revision string              `yaml:"revision" json:"revision"`
+	Mode     string              `yaml:"mode,omitempty" json:"mode,omitempty"`
 	Policies []RoutePolicyConfig `yaml:"policies" json:"policies"`
 }
 
@@ -169,7 +172,7 @@ func Default() *Config {
 			DenyMulticast:     true,
 			DenyCloudMetadata: true,
 			AllowedUDPPorts:   []string{"1-65535"},
-			AllowedTCPPorts:   []string{"80", "443", "1935", "5222", "27000-65535"},
+			AllowedTCPPorts:   []string{"1-65535"},
 			BlockedTCPPorts:   []string{"22", "25", "3306", "5432", "6379"},
 		},
 		Panel: PanelConfig{
@@ -241,6 +244,9 @@ func applyDefaults(cfg *Config) {
 		cfg.Security.AllowedUDPPorts = def.Security.AllowedUDPPorts
 	}
 	if len(cfg.Security.AllowedTCPPorts) == 0 {
+		cfg.Security.AllowedTCPPorts = def.Security.AllowedTCPPorts
+	}
+	if sameStringList(cfg.Security.AllowedTCPPorts, legacyDefaultAllowedTCPPorts) {
 		cfg.Security.AllowedTCPPorts = def.Security.AllowedTCPPorts
 	}
 	cfg.Panel.ReportURL = strings.TrimSpace(cfg.Panel.ReportURL)
@@ -399,6 +405,11 @@ func normalizeNode(node *NodeConfig) {
 }
 
 func validateRoutePolicies(routePolicies RoutePoliciesConfig) error {
+	switch strings.ToLower(strings.TrimSpace(routePolicies.Mode)) {
+	case "", "strict", "client_decision":
+	default:
+		return fmt.Errorf("route_policies.mode must be strict or client_decision")
+	}
 	policies := make(map[string]struct{}, len(routePolicies.Policies))
 	rules := make(map[string]struct{})
 	for i, policy := range routePolicies.Policies {
@@ -506,4 +517,16 @@ func cleanStringList(values []string) []string {
 		cleaned = append(cleaned, value)
 	}
 	return cleaned
+}
+
+func sameStringList(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if strings.TrimSpace(a[i]) != strings.TrimSpace(b[i]) {
+			return false
+		}
+	}
+	return true
 }

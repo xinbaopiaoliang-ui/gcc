@@ -13,6 +13,11 @@ import (
 
 var ErrPolicyDenied = errors.New("route policy denied")
 
+const (
+	ModeStrict         = "strict"
+	ModeClientDecision = "client_decision"
+)
+
 type Match struct {
 	Revision string
 	GameID   string
@@ -22,7 +27,7 @@ type Match struct {
 }
 
 func Enabled(cfg config.RoutePoliciesConfig) bool {
-	return len(cfg.Policies) > 0
+	return mode(cfg) == ModeClientDecision || len(cfg.Policies) > 0
 }
 
 func Evaluate(cfg config.RoutePoliciesConfig, principal *auth.Principal, metadata protocol.FlowMetadata, network, targetHost string, targetPort int) (Match, error) {
@@ -30,6 +35,9 @@ func Evaluate(cfg config.RoutePoliciesConfig, principal *auth.Principal, metadat
 		return Match{}, nil
 	}
 	network = strings.ToLower(strings.TrimSpace(network))
+	if mode(cfg) == ModeClientDecision {
+		return evaluateClientDecision(cfg, principal, metadata, network)
+	}
 	if err := metadata.ValidateForNetwork(network); err != nil {
 		return Match{}, deny(err)
 	}
@@ -91,6 +99,52 @@ func Evaluate(cfg config.RoutePoliciesConfig, principal *auth.Principal, metadat
 		RuleID:   metadata.RuleID,
 		Action:   action,
 	}, nil
+}
+
+func evaluateClientDecision(cfg config.RoutePoliciesConfig, principal *auth.Principal, metadata protocol.FlowMetadata, network string) (Match, error) {
+	if principal == nil {
+		return Match{}, deny(errors.New("principal is required"))
+	}
+	if metadata.Empty() && !principalRequiresMetadata(principal) {
+		return Match{
+			Revision: strings.TrimSpace(cfg.Revision),
+			Action:   "quic_relay",
+		}, nil
+	}
+	if err := metadata.ValidateClientDecisionForNetwork(network); err != nil {
+		return Match{}, deny(err)
+	}
+	if !containsOrEmpty(principal.GameIDs, metadata.GameID) {
+		return Match{}, deny(fmt.Errorf("token does not allow game_id %q", metadata.GameID))
+	}
+	if !containsOrEmpty(principal.PolicyIDs, metadata.PolicyID) {
+		return Match{}, deny(fmt.Errorf("token does not allow policy_id %q", metadata.PolicyID))
+	}
+	if principal.ConfigRevision != "" && metadata.ClientConfigRevision != principal.ConfigRevision {
+		return Match{}, deny(fmt.Errorf("metadata.client_config_revision %q does not match token config_revision %q", metadata.ClientConfigRevision, principal.ConfigRevision))
+	}
+	return Match{
+		Revision: strings.TrimSpace(cfg.Revision),
+		GameID:   metadata.GameID,
+		PolicyID: metadata.PolicyID,
+		RuleID:   metadata.RuleID,
+		Action:   "quic_relay",
+	}, nil
+}
+
+func mode(cfg config.RoutePoliciesConfig) string {
+	value := strings.ToLower(strings.TrimSpace(cfg.Mode))
+	if value == "" {
+		if len(cfg.Policies) > 0 {
+			return ModeClientDecision
+		}
+		return ModeStrict
+	}
+	return value
+}
+
+func principalRequiresMetadata(principal *auth.Principal) bool {
+	return len(principal.GameIDs) > 0 || len(principal.PolicyIDs) > 0 || strings.TrimSpace(principal.ConfigRevision) != ""
 }
 
 func deny(err error) error {

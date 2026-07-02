@@ -783,3 +783,15 @@ admin:
 - [x] 节点列表和节点详情抽屉新增“节点密钥”入口，支持刷新状态、同步密钥、清空副本。
 - [x] 本阶段不新增 SQL；复用 v0.6.4 已加入的 `panel_nodes.hmac_secret_encrypted`、`hmac_secret_source`、`hmac_secret_updated_at` 字段。
 - [x] 本地验证通过：`go test ./internal/panel`、`web/panel npm run build`。
+
+### 阶段 83：v0.7.8 客户端决策转发模式
+
+- [x] 节点新增 `route_policies.mode`，支持 `strict` 和 `client_decision` 两种模式。
+- [x] 当前默认使用 `client_decision`：客户端按业务后台配置决策是否加速，节点只验证 token 授权、flow metadata 和基础安全边界。
+- [x] `client_decision` 模式下不再用节点本地策略逐条匹配 `target_host`、`target_port` 和 `rule_id`，避免全平台游戏端口被旧策略误拒绝。
+- [x] 节点仍强制校验 `game_id`、`policy_id`、`network`、`client_config_revision` 与 token claims 一致；受限 token 缺少 metadata 时返回 `target_denied`。
+- [x] TCP 默认允许端口改为 `1-65535`，同时保留 `22`、`25`、`3306`、`5432`、`6379` 等危险端口黑名单和私网/回环/云元数据地址拦截。
+- [x] 兼容旧部署配置：历史默认 TCP 白名单 `80/443/1935/5222/27000-65535` 会在加载时自动迁移为 `1-65535`；用户自定义白名单不会被覆盖。
+- [x] 控制面板一键部署生成的新节点配置默认写入 `route_policies.mode: client_decision` 和 `allowed_tcp_ports: ["1-65535"]`。
+- [x] 更新客户端、业务后台和控制面板边界文档，明确规则命中由客户端负责，节点不做进程识别和具体游戏规则决策。
+- [x] 本地验证通过：`go test ./...`。

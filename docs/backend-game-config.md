@@ -10,7 +10,7 @@
 
 - 维护游戏、进程、TCP/UDP 规则、节点、用户授权。
 - 生成客户端配置快照。
-- 生成节点策略快照。
+- 生成客户端使用的策略快照，并可把策略版本同步到控制面板用于观测和闭环。
 - 签发短期 token 或调用 `gaccel-token-api` 签发 token。
 
 客户端负责：
@@ -23,15 +23,16 @@
 节点负责：
 
 - 校验 token。
-- 校验 `game_id` / `policy_id` / `rule_id` / `network` / `target_host` / `target_port` 是否允许。
+- 校验 `game_id` / `policy_id` / `network` / `client_config_revision` 是否被 token 授权。
+- 执行私网、回环、链路本地、云元数据地址和危险端口等基础安全拦截。
 - 通过校验后执行 TCP/UDP 转发。
 - 记录流量、用户、游戏、策略、flow 事件。
 
 重要原则：
 
 - 节点不能按进程判断，进程只存在客户端本机。
-- 客户端不能把任意规则直接下发给节点。
-- 节点只信任业务后台同步的节点策略快照。
+- 客户端不能把用户任意输入直接转发给节点，必须先按业务后台下发规则命中。
+- 当前默认 `route_policies.mode` 为 `client_decision`：客户端负责规则决策，节点负责验权、转发和基础安全。
 - 客户端发来的 `process_name` 只用于日志和排查，不能作为唯一安全依据。
 - 业务后台、控制面板和节点之间统一用 `node_id` 识别节点；节点 IP/端口只作为客户端连接入口，可以变化。
 
@@ -51,7 +52,7 @@
 
 节点
   -> 校验 token 授权
-  -> 校验本地节点策略
+  -> 校验 OPEN metadata 和基础安全边界
   -> TCP Stream Relay / UDP Datagram Relay
 ```
 
@@ -71,7 +72,7 @@
 | `desired_version` | 可选 | 期望节点版本，用于一键更新和漂移提示。 |
 | `desired_policy_revision` | 可选 | 期望策略版本，用于策略同步闭环。 |
 
-业务后台保存游戏和规则后，应生成 `route_policies`，调用控制面板的策略校验接口，通过后保存策略，再把对应 `revision` 设置为目标节点的 `desired_policy_revision`。
+业务后台保存游戏和规则后，应生成客户端配置快照，并用同一个 `revision` 写入 token 的 `config_revision`。控制面板可保存 `route_policies` 版本用于展示、审计和同步闭环；当前节点默认 `client_decision` 模式不再靠本地策略逐条匹配目标地址和端口。
 
 ## 客户端传给节点的字段
 
@@ -124,8 +125,8 @@
 | `target_host` | 是 | 客户端实际要访问的域名或 IP。 |
 | `target_port` | 是 | 客户端实际要访问的端口。 |
 | `metadata.game_id` | 是 | 游戏 ID，例如 `steam`、`pubg`、`lol`。 |
-| `metadata.policy_id` | 是 | 后台生成的策略 ID，节点按它查规则。 |
-| `metadata.rule_id` | 是 | 命中的具体规则 ID，便于节点快速校验和记录。 |
+| `metadata.policy_id` | 是 | 后台生成的策略 ID，节点校验它是否在 token `policy_ids` 中。 |
+| `metadata.rule_id` | 建议 | 命中的具体规则 ID，便于节点记录和控制面板排查；当前默认模式不靠它放行。 |
 | `metadata.network` | 是 | `tcp` 或 `udp`，必须和消息类型一致。 |
 | `metadata.process_name` | 建议 | 客户端本机进程名，只用于日志和排查。 |
 | `metadata.process_path_hash` | 可选 | 进程路径 hash，辅助反作弊或排查。 |
@@ -162,10 +163,9 @@ token 应携带游戏和策略授权字段：
 2. token 是否允许当前 game_id。
 3. token 是否允许当前 policy_id。
 4. token 是否允许 network: tcp/udp。
-5. 节点本地策略是否存在 policy_id。
-6. rule_id 是否属于 policy_id。
-7. target_host / target_port 是否命中 rule。
-8. 通过后才创建 flow。
+5. metadata.client_config_revision 是否和 token config_revision 一致。
+6. target_host / target_port 是否触发节点基础安全拦截。
+7. 通过后才创建 flow。
 ```
 
 ## MySQL 表结构
@@ -532,6 +532,7 @@ CREATE TABLE accel_config_revisions (
 
 ```yaml
 route_policies:
+  mode: "client_decision"
   revision: "20260616.1"
   policies:
     - policy_id: "steam-web-v1"
@@ -669,7 +670,7 @@ Content-Type: application/json
 
 ### 面板同步节点策略
 
-节点策略可以通过完整 `apply_config` 或独立 `apply_policy` 运维命令同步。策略频繁变更时，建议优先使用 `apply_policy`，只替换节点配置里的 `route_policies` 块：
+节点策略可以通过完整 `apply_config` 或独立 `apply_policy` 运维命令同步。当前默认使用 `client_decision`，策略块主要用于版本同步、观测和兼容严格模式；客户端仍然按照业务后台下发的规则自行决策是否打开 flow。
 
 ```json
 {
@@ -684,12 +685,12 @@ Content-Type: application/json
 
 ## 节点已实现能力
 
-当前节点已经支持通用 TCP/UDP 转发和 `policy_id` 级强校验：
+当前节点已经支持通用 TCP/UDP 转发和客户端决策模式下的授权校验：
 
 1. `protocol.Message.Metadata` 解析为结构化 flow metadata。
 2. token claims 支持 `game_ids`、`policy_ids`、`config_revision`。
-3. 节点配置支持 `route_policies`。
-4. `OPEN_TCP` / `OPEN_UDP` 创建 flow 前执行 token、metadata、policy、rule、目标和端口校验。
+3. 节点配置支持 `route_policies.mode: "client_decision"` 和历史严格策略模式。
+4. `OPEN_TCP` / `OPEN_UDP` 创建 flow 前执行 token、metadata、TCP/UDP 权限和基础安全边界校验。
 5. `/status` 输出 `route_policies.revision` 与 `policy_count`。
 6. `/sessions` 输出每个 flow 的 `game_id`、`policy_id`、`rule_id`。
 7. flow metrics 按 `game_id`、`policy_id` 聚合。
@@ -701,9 +702,9 @@ Content-Type: application/json
 
 1. 业务后台先落 MySQL 表。
 2. 后台生成客户端配置 JSON。
-3. 后台生成节点策略 JSON。
+3. 后台生成策略版本 revision，并把完整规则放进客户端配置。
 4. token API 按用户授权签发 `game_ids` / `policy_ids` / `config_revision`。
-5. 面板用 `apply_policy` 同步节点 `route_policies`。
+5. 面板保存策略版本并同步节点 `route_policies.mode: client_decision`，用于观测和版本一致性。
 6. 客户端接入进程级分流。
 7. 联调 Steam TCP。
 8. 联调一个 UDP 游戏。

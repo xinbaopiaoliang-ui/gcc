@@ -42,11 +42,7 @@ security:
   allowed_udp_ports:
     - "1-65535"
   allowed_tcp_ports:
-    - "80"
-    - "443"
-    - "1935"
-    - "5222"
-    - "27000-65535"
+    - "1-65535"
   blocked_tcp_ports:
     - "22"
     - "25"
@@ -55,6 +51,7 @@ security:
     - "6379"
 
 route_policies:
+  mode: "client_decision"
   revision: "20260616.1"
   policies:
     - policy_id: "steam-web-v1"

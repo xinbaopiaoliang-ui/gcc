@@ -125,6 +125,7 @@ User-Agent: gaccel-node/<version>
     "alpn": "gaccel/1"
   },
   "route_policies": {
+    "mode": "client_decision",
     "revision": "20260616.1",
     "policy_count": 2
   },
@@ -161,7 +162,7 @@ User-Agent: gaccel-node/<version>
 面板返回任意 `2xx` 即认为成功。非 `2xx` 或请求失败会记录 warning 日志，下个周期继续上报。
 `panel_commands` 为空时会省略；有命令执行后会携带最近的执行结果，面板可据此确认运维命令成功或失败。
 
-`route_policies.revision` 和 `route_policies.policy_count` 用于面板确认节点当前加载的策略版本，尤其是 `apply_policy` 下发后做对账。
+`route_policies.mode` 用于确认节点当前是 `client_decision` 还是 `strict`；`route_policies.revision` 和 `route_policies.policy_count` 用于面板确认节点当前加载的策略版本，尤其是 `apply_policy` 下发后做对账。
 
 ### gaccel-panel 已实现的上报处理
 

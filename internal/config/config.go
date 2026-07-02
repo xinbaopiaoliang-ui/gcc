@@ -14,6 +14,11 @@ import (
 
 var legacyDefaultAllowedTCPPorts = []string{"80", "443", "1935", "5222", "27000-65535"}
 
+const (
+	RoutePoliciesModeStrict         = "strict"
+	RoutePoliciesModeClientDecision = "client_decision"
+)
+
 type Config struct {
 	Server        ServerConfig        `yaml:"server"`
 	Node          NodeConfig          `yaml:"node"`
@@ -406,7 +411,7 @@ func normalizeNode(node *NodeConfig) {
 
 func validateRoutePolicies(routePolicies RoutePoliciesConfig) error {
 	switch strings.ToLower(strings.TrimSpace(routePolicies.Mode)) {
-	case "", "strict", "client_decision":
+	case "", RoutePoliciesModeStrict, RoutePoliciesModeClientDecision:
 	default:
 		return fmt.Errorf("route_policies.mode must be strict or client_decision")
 	}
@@ -437,6 +442,17 @@ func validateRoutePolicies(routePolicies RoutePoliciesConfig) error {
 		}
 	}
 	return nil
+}
+
+func EffectiveRoutePoliciesMode(routePolicies RoutePoliciesConfig) string {
+	value := strings.ToLower(strings.TrimSpace(routePolicies.Mode))
+	if value != "" {
+		return value
+	}
+	if len(routePolicies.Policies) > 0 {
+		return RoutePoliciesModeClientDecision
+	}
+	return RoutePoliciesModeStrict
 }
 
 func validateRoutePolicyRule(policyID string, index int, rule RoutePolicyRuleConfig) error {

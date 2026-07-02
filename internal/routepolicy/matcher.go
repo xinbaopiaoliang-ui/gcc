@@ -14,8 +14,8 @@ import (
 var ErrPolicyDenied = errors.New("route policy denied")
 
 const (
-	ModeStrict         = "strict"
-	ModeClientDecision = "client_decision"
+	ModeStrict         = config.RoutePoliciesModeStrict
+	ModeClientDecision = config.RoutePoliciesModeClientDecision
 )
 
 type Match struct {
@@ -133,14 +133,7 @@ func evaluateClientDecision(cfg config.RoutePoliciesConfig, principal *auth.Prin
 }
 
 func mode(cfg config.RoutePoliciesConfig) string {
-	value := strings.ToLower(strings.TrimSpace(cfg.Mode))
-	if value == "" {
-		if len(cfg.Policies) > 0 {
-			return ModeClientDecision
-		}
-		return ModeStrict
-	}
-	return value
+	return config.EffectiveRoutePoliciesMode(cfg)
 }
 
 func principalRequiresMetadata(principal *auth.Principal) bool {

@@ -143,7 +143,7 @@ POST /api/backend/policy-revisions/validate
   "revision": "20260618.1",
   "sha256": "",
   "base_revision": "20260617.1",
-  "route_policies_yaml": "route_policies:\n  revision: \"20260618.1\"\n  policies: []\n"
+  "route_policies_yaml": "route_policies:\n  revision: \"20260618.1\"\n  mode: \"client_decision\"\n  policies: []\n"
 }
 ```
 
@@ -155,7 +155,7 @@ POST /api/backend/policy-revisions/validate
 | `sha256` | 控制面板按 YAML 原文计算的 SHA256。 |
 | `errors[]` | 必须修复的问题。 |
 | `warnings[]` | 可保存但建议关注的问题。 |
-| `summary` | 策略数、规则数、游戏 ID、策略 ID、协议、目标类型统计。 |
+| `summary` | 策略模式、策略数、规则数、游戏 ID、策略 ID、协议、目标类型统计。 |
 | `diff` | 当传入 `base_revision` 或 `base_route_policies_yaml` 时返回差异摘要。 |
 
 ### 保存策略
@@ -169,7 +169,7 @@ POST /api/backend/policy-revisions
 ```json
 {
   "revision": "20260618.1",
-  "route_policies_yaml": "route_policies:\n  revision: \"20260618.1\"\n  policies: []\n"
+  "route_policies_yaml": "route_policies:\n  revision: \"20260618.1\"\n  mode: \"client_decision\"\n  policies: []\n"
 }
 ```
 

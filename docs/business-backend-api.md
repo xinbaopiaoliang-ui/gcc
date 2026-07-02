@@ -297,7 +297,7 @@ POST /api/backend/policy-revisions/validate
   "revision": "20260622.1", // 策略版本，建议和客户端配置版本保持一致
   "sha256": "", // 可不传；传了就必须和 route_policies_yaml 内容匹配
   "base_revision": "20260621.1", // 可选，用于返回差异
-  "route_policies_yaml": "route_policies:\n  revision: \"20260622.1\"\n  policies: []\n"
+  "route_policies_yaml": "route_policies:\n  revision: \"20260622.1\"\n  mode: \"client_decision\"\n  policies: []\n"
 }
 ```
 
@@ -308,11 +308,10 @@ POST /api/backend/policy-revisions/validate
   "valid": true,
   "sha256": "7f83b1657ff1fc53b92dc18148a1d65dfa135...",
   "errors": [],
-  "warnings": [
-    "route_policies.policies is empty; node will not enforce per-game route policy matching"
-  ],
+  "warnings": [],
   "summary": {
     "revision": "20260622.1",
+    "mode": "client_decision",
     "policy_count": 0,
     "rule_count": 0,
     "relay_rule_count": 0,
@@ -329,6 +328,7 @@ POST /api/backend/policy-revisions/validate
 - `valid=false`：不要保存，也不要下发。
 - `warnings` 不为空：可以保存，但建议后台展示给管理员看。
 - `sha256` 用来做版本内容对账。
+- `summary.mode` 表示节点应用该策略后采用的有效模式；当前默认推荐 `client_decision`。
 
 ## 10. 保存策略版本
 
@@ -344,7 +344,7 @@ POST /api/backend/policy-revisions
 {
   "revision": "20260622.1",
   "sha256": "", // 可不填，控制面板会自己计算
-  "route_policies_yaml": "route_policies:\n  revision: \"20260622.1\"\n  policies: []\n"
+  "route_policies_yaml": "route_policies:\n  revision: \"20260622.1\"\n  mode: \"client_decision\"\n  policies: []\n"
 }
 ```
 
@@ -575,4 +575,3 @@ curl -sS http://103.201.131.99:8091/api/backend/token-defaults \
 curl -sS http://103.201.131.99:8091/api/backend/nodes/hk-01/sync-status \
   -H "Authorization: Bearer <backend_api_key>"
 ```
-

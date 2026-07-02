@@ -95,6 +95,20 @@ route_policies:
 	}
 }
 
+func TestEffectiveRoutePoliciesMode(t *testing.T) {
+	if got := EffectiveRoutePoliciesMode(RoutePoliciesConfig{}); got != RoutePoliciesModeStrict {
+		t.Fatalf("empty mode = %q, want %q", got, RoutePoliciesModeStrict)
+	}
+	if got := EffectiveRoutePoliciesMode(RoutePoliciesConfig{Mode: RoutePoliciesModeClientDecision}); got != RoutePoliciesModeClientDecision {
+		t.Fatalf("explicit mode = %q, want %q", got, RoutePoliciesModeClientDecision)
+	}
+	if got := EffectiveRoutePoliciesMode(RoutePoliciesConfig{
+		Policies: []RoutePolicyConfig{{PolicyID: "policy-1", GameID: "game-1"}},
+	}); got != RoutePoliciesModeClientDecision {
+		t.Fatalf("legacy policy bundle mode = %q, want %q", got, RoutePoliciesModeClientDecision)
+	}
+}
+
 func TestLoadDataRejectsInvalidRoutePolicyRule(t *testing.T) {
 	data := []byte(`server:
   listen: ":5555"

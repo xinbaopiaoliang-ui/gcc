@@ -795,3 +795,11 @@ admin:
 - [x] 控制面板一键部署生成的新节点配置默认写入 `route_policies.mode: client_decision` 和 `allowed_tcp_ports: ["1-65535"]`。
 - [x] 更新客户端、业务后台和控制面板边界文档，明确规则命中由客户端负责，节点不做进程识别和具体游戏规则决策。
 - [x] 本地验证通过：`go test ./...`。
+
+### 阶段 84：v0.7.9 策略模式观测与校验修正
+
+- [x] `config` 层新增有效策略模式计算，统一处理显式 `mode`、历史策略包和空策略配置。
+- [x] 节点 `/status` 的 `route_policies` 增加 `mode`，便于排查节点当前是 `client_decision` 还是 `strict`。
+- [x] 节点上报控制面板的 `route_policies` 增加 `mode`，面板 raw report 和后续诊断可以直接读取。
+- [x] 策略校验接口 `summary` 增加 `mode`，并修正 `client_decision + policies: []` 时的误导性 warning。
+- [x] 同步业务后台 API、面板上报和 Apifox 示例文档，默认策略示例写入 `mode: client_decision`。

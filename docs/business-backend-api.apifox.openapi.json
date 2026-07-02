@@ -315,7 +315,7 @@
                 "revision": "20260622.1",
                 "sha256": "",
                 "base_revision": "20260621.1",
-                "route_policies_yaml": "route_policies:\n  revision: \"20260622.1\"\n  policies: []\n"
+                "route_policies_yaml": "route_policies:\n  revision: \"20260622.1\"\n  mode: \"client_decision\"\n  policies: []\n"
               }
             }
           }
@@ -332,11 +332,10 @@
                   "valid": true,
                   "sha256": "7f83b1657ff1fc53b92dc18148a1d65dfa135f2f",
                   "errors": [],
-                  "warnings": [
-                    "route_policies.policies is empty; node will not enforce per-game route policy matching"
-                  ],
+                  "warnings": [],
                   "summary": {
                     "revision": "20260622.1",
+                    "mode": "client_decision",
                     "policy_count": 0,
                     "rule_count": 0,
                     "relay_rule_count": 0,
@@ -377,7 +376,7 @@
               "example": {
                 "revision": "20260622.1",
                 "sha256": "",
-                "route_policies_yaml": "route_policies:\n  revision: \"20260622.1\"\n  policies: []\n"
+                "route_policies_yaml": "route_policies:\n  revision: \"20260622.1\"\n  mode: \"client_decision\"\n  policies: []\n"
               }
             }
           }

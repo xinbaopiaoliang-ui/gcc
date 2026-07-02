@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"gaccel-node/internal/config"
 	"gaccel-node/internal/metrics"
 	"gaccel-node/internal/panelcommand"
 	"gaccel-node/internal/sessions"
@@ -1385,6 +1386,7 @@ func TestPolicyValidationEndpointSummarizesRoutePolicies(t *testing.T) {
 
 	policyYAML := `route_policies:
   revision: "20260618.1"
+  mode: "client_decision"
   policies:
     - policy_id: "steam-web-v1"
       game_id: "steam"
@@ -1417,8 +1419,33 @@ func TestPolicyValidationEndpointSummarizesRoutePolicies(t *testing.T) {
 	if payload.Summary.PolicyCount != 1 || payload.Summary.RuleCount != 1 || payload.Summary.RelayRuleCount != 1 {
 		t.Fatalf("unexpected summary: %#v", payload.Summary)
 	}
+	if payload.Summary.Mode != config.RoutePoliciesModeClientDecision {
+		t.Fatalf("unexpected mode: %q", payload.Summary.Mode)
+	}
 	if len(payload.Summary.Games) != 1 || payload.Summary.Games[0] != "steam" {
 		t.Fatalf("unexpected games: %#v", payload.Summary.Games)
+	}
+}
+
+func TestPolicyValidationClientDecisionAllowsEmptyPoliciesWithoutWarning(t *testing.T) {
+	resp := ValidatePolicyPackage(PolicyValidationRequest{
+		Revision: "client-decision-empty",
+		RoutePoliciesYAML: `route_policies:
+  revision: "client-decision-empty"
+  mode: "client_decision"
+  policies: []
+`,
+	})
+	if !resp.Valid {
+		t.Fatalf("policy should be valid: %#v", resp.Errors)
+	}
+	if resp.Summary.Mode != config.RoutePoliciesModeClientDecision {
+		t.Fatalf("mode = %q, want client_decision", resp.Summary.Mode)
+	}
+	for _, warning := range resp.Warnings {
+		if strings.Contains(warning, "per-game route") {
+			t.Fatalf("unexpected strict-mode warning: %#v", resp.Warnings)
+		}
 	}
 }
 

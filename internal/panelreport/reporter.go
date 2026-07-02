@@ -48,6 +48,7 @@ type ServerInfo struct {
 }
 
 type RoutePoliciesInfo struct {
+	Mode        string `json:"mode"`
 	Revision    string `json:"revision"`
 	PolicyCount int    `json:"policy_count"`
 }
@@ -151,6 +152,7 @@ func BuildPayloadWithSessions(cfg *config.Config, snapshot metrics.Snapshot, act
 			ALPN:   cfg.Server.ALPN,
 		},
 		RoutePolicies: RoutePoliciesInfo{
+			Mode:        config.EffectiveRoutePoliciesMode(cfg.RoutePolicies),
 			Revision:    cfg.RoutePolicies.Revision,
 			PolicyCount: len(cfg.RoutePolicies.Policies),
 		},

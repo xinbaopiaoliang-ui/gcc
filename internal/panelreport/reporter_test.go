@@ -21,6 +21,7 @@ func TestBuildPayloadIncludesNodeAndVersion(t *testing.T) {
 	cfg.Server.ALPN = "gaccel/1"
 	cfg.RoutePolicies = config.RoutePoliciesConfig{
 		Revision: "20260616.1",
+		Mode:     config.RoutePoliciesModeClientDecision,
 		Policies: []config.RoutePolicyConfig{
 			{PolicyID: "steam-web-v1", GameID: "steam"},
 		},
@@ -43,6 +44,9 @@ func TestBuildPayloadIncludesNodeAndVersion(t *testing.T) {
 	}
 	if payload.RoutePolicies.Revision != "20260616.1" {
 		t.Fatalf("RoutePolicies.Revision = %q, want 20260616.1", payload.RoutePolicies.Revision)
+	}
+	if payload.RoutePolicies.Mode != config.RoutePoliciesModeClientDecision {
+		t.Fatalf("RoutePolicies.Mode = %q, want client_decision", payload.RoutePolicies.Mode)
 	}
 	if payload.RoutePolicies.PolicyCount != 1 {
 		t.Fatalf("RoutePolicies.PolicyCount = %d, want 1", payload.RoutePolicies.PolicyCount)

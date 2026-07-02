@@ -41,7 +41,7 @@
 ```text
 业务后台
   -> 生成客户端配置
-  -> 生成节点策略配置
+  -> 生成客户端策略配置和策略版本
   -> 签发短期 token
   -> 通过控制面板按 node_id 同步节点和 desired_policy_revision
 

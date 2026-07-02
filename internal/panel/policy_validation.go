@@ -27,6 +27,7 @@ type PolicyValidationResponse struct {
 
 type PolicyValidationSummary struct {
 	Revision       string   `json:"revision"`
+	Mode           string   `json:"mode"`
 	PolicyCount    int      `json:"policy_count"`
 	RuleCount      int      `json:"rule_count"`
 	RelayRuleCount int      `json:"relay_rule_count"`
@@ -76,8 +77,8 @@ func ValidatePolicyPackage(req PolicyValidationRequest) PolicyValidationResponse
 	if strings.TrimSpace(candidate.Revision) == "" {
 		resp.Warnings = append(resp.Warnings, "route_policies.revision is empty; node can apply it, but sync troubleshooting is harder")
 	}
-	if len(candidate.Policies) == 0 {
-		resp.Warnings = append(resp.Warnings, "route_policies.policies is empty; node will not enforce per-game route policy matching")
+	if len(candidate.Policies) == 0 && config.EffectiveRoutePoliciesMode(candidate) == config.RoutePoliciesModeStrict {
+		resp.Warnings = append(resp.Warnings, "route_policies.policies is empty in strict mode; no per-game route rules will be enforced")
 	}
 	if resp.Summary.RelayRuleCount == 0 && resp.Summary.RuleCount > 0 {
 		resp.Warnings = append(resp.Warnings, "no quic_relay rules were found; block/direct rules are not relayable by the node")
@@ -101,6 +102,7 @@ func summarizeRoutePolicies(routePolicies config.RoutePoliciesConfig) PolicyVali
 	targetTypes := make(map[string]struct{})
 	summary := PolicyValidationSummary{
 		Revision: strings.TrimSpace(routePolicies.Revision),
+		Mode:     config.EffectiveRoutePoliciesMode(routePolicies),
 	}
 	for _, policy := range routePolicies.Policies {
 		policyID := strings.TrimSpace(policy.PolicyID)

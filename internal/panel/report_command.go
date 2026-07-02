@@ -48,6 +48,7 @@ type ReportServerInfo struct {
 }
 
 type ReportRoutePoliciesInfo struct {
+	Mode        string `json:"mode"`
 	Revision    string `json:"revision"`
 	PolicyCount int    `json:"policy_count"`
 }

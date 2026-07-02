@@ -98,6 +98,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 		},
 		"node": cfg.Node,
 		"route_policies": map[string]any{
+			"mode":         config.EffectiveRoutePoliciesMode(cfg.RoutePolicies),
 			"revision":     cfg.RoutePolicies.Revision,
 			"policy_count": len(cfg.RoutePolicies.Policies),
 		},
